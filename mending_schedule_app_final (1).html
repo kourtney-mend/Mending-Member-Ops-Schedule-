@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mending — Member Ops Schedule</title>
+<style>
+:root {
+  --bg-primary: #ffffff; --bg-secondary: #f5f5f3; --bg-tertiary: #eeede9;
+  --text-primary: #1a1a18; --text-secondary: #5f5e5a; --text-tertiary: #888780;
+  --border-light: rgba(0,0,0,0.1); --border-mid: rgba(0,0,0,0.2); --border-strong: rgba(0,0,0,0.32);
+  --radius-sm: 6px; --radius-md: 8px; --radius-lg: 12px;
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-primary: #1c1c1a; --bg-secondary: #252523; --bg-tertiary: #2c2c2a;
+    --text-primary: #f0ede6; --text-secondary: #a8a79f; --text-tertiary: #666560;
+    --border-light: rgba(255,255,255,0.08); --border-mid: rgba(255,255,255,0.16); --border-strong: rgba(255,255,255,0.26);
+  }
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font); background: var(--bg-tertiary); min-height: 100vh; padding: 1.5rem 1rem; color: var(--text-primary); }
+.container { max-width: 900px; margin: 0 auto; background: var(--bg-primary); border-radius: var(--radius-lg); border: 0.5px solid var(--border-light); padding: 1.5rem; }
+.app-header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 0.5px solid var(--border-light); flex-wrap: wrap; gap: 8px; }
+.app-title { font-size: 16px; font-weight: 500; }
+.app-meta { font-size: 12px; color: var(--text-tertiary); }
+.save-indicator { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-tertiary); }
+.save-dot { width: 7px; height: 7px; border-radius: 50%; background: #639922; flex-shrink: 0; transition: background 0.3s; }
+.tabs { display: flex; gap: 4px; margin-bottom: 1.5rem; border-bottom: 0.5px solid var(--border-light); flex-wrap: wrap; }
+.tab { padding: 8px 16px; font-size: 13px; cursor: pointer; border: none; background: transparent; color: var(--text-secondary); border-bottom: 2px solid transparent; margin-bottom: -1px; font-family: var(--font); }
+.tab.active { color: var(--text-primary); font-weight: 500; border-bottom: 2px solid var(--text-primary); }
+.view { display: none; } .view.active { display: block; }
+.day-select { display: flex; gap: 6px; margin-bottom: 1.25rem; flex-wrap: wrap; align-items: center; }
+.day-btn { padding: 5px 12px; font-size: 12px; border: 0.5px solid var(--border-light); border-radius: var(--radius-md); cursor: pointer; background: transparent; color: var(--text-secondary); font-family: var(--font); }
+.day-btn.active { background: var(--text-primary); color: var(--bg-primary); }
+.fri-label { font-size: 11px; color: var(--text-tertiary); padding: 4px 0; margin-left: 4px; }
+.fri-toggle { display: flex; gap: 4px; }
+.fri-btn { padding: 4px 9px; font-size: 11px; border: 0.5px solid var(--border-light); border-radius: var(--radius-md); cursor: pointer; background: transparent; color: var(--text-tertiary); font-family: var(--font); }
+.fri-btn.active { background: #CECBF6; color: #3C3489; border-color: #AFA9EC; font-weight: 500; }
+.agent-select { display: flex; gap: 8px; margin-bottom: 1.25rem; flex-wrap: wrap; }
+.agent-btn { padding: 6px 14px; font-size: 13px; border: 0.5px solid var(--border-mid); border-radius: var(--radius-md); cursor: pointer; background: var(--bg-primary); color: var(--text-secondary); font-family: var(--font); }
+.agent-btn.active { background: var(--bg-secondary); color: var(--text-primary); font-weight: 500; }
+.ob-row { display: flex; align-items: center; gap: 10px; margin-bottom: 1.25rem; padding: 10px 14px; border-radius: var(--radius-md); border: 0.5px solid var(--border-light); background: var(--bg-secondary); }
+.ob-label { font-size: 13px; color: var(--text-secondary); flex: 1; }
+.ob-label strong { color: var(--text-primary); font-weight: 500; }
+.toggle-switch { position: relative; width: 40px; height: 22px; flex-shrink: 0; }
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
+.toggle-slider { position: absolute; inset: 0; background: var(--border-mid); border-radius: 22px; cursor: pointer; transition: background 0.2s; }
+.toggle-slider:before { content: ''; position: absolute; height: 16px; width: 16px; left: 3px; top: 3px; background: white; border-radius: 50%; transition: transform 0.2s; }
+.toggle-switch input:checked + .toggle-slider { background: #378ADD; }
+.toggle-switch input:checked + .toggle-slider:before { transform: translateX(18px); }
+.ob-badge { font-size: 11px; padding: 2px 8px; border-radius: var(--radius-md); font-weight: 500; background: #E6F1FB; color: #185FA5; border: 0.5px solid #B5D4F4; }
+.ob-badge.noob { background: #FAEEDA; color: #633806; border-color: #FAC775; }
+.legend { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 1.25rem; }
+.legend-item { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text-secondary); }
+.legend-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+.agent-row { margin-bottom: 1.25rem; }
+.agent-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px; }
+.agent-name { font-size: 11px; font-weight: 500; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em; }
+.tz-pills { display: flex; gap: 5px; align-items: center; }
+.tz-pill { font-size: 10px; padding: 2px 7px; border-radius: 20px; font-weight: 500; border: 0.5px solid; }
+.tz-pill.agent { background: #E6F1FB; color: #185FA5; border-color: #B5D4F4; }
+.tz-pill.pst { background: var(--bg-secondary); color: var(--text-tertiary); border-color: var(--border-light); }
+.dual-wrap { display: flex; flex-direction: column; gap: 3px; }
+.tl-row { display: flex; align-items: center; gap: 8px; }
+.tl-tz { font-size: 10px; width: 28px; text-align: right; flex-shrink: 0; font-weight: 500; }
+.tl-outer { flex: 1; }
+.tl-hdr { display: flex; justify-content: space-between; font-size: 10px; color: var(--text-tertiary); margin-bottom: 2px; }
+.tl-bar { display: flex; border-radius: var(--radius-md); overflow: hidden; border: 0.5px solid var(--border-light); position: relative; }
+.tl-block { display: flex; align-items: center; justify-content: center; font-weight: 500; cursor: pointer; overflow: hidden; white-space: nowrap; padding: 0 3px; transition: opacity 0.12s; }
+.tl-block:hover { opacity: 0.82; }
+.now-line { position: absolute; top: 0; bottom: 0; width: 2px; background: #E24B4A; pointer-events: none; z-index: 10; }
+.now-lbl { position: absolute; top: -14px; font-size: 9px; color: #E24B4A; transform: translateX(-50%); white-space: nowrap; font-weight: 500; }
+.cov-bar-wrap { margin-bottom: 1.25rem; }
+.cov-bar-meta { display: flex; justify-content: space-between; font-size: 10px; color: var(--text-tertiary); margin-bottom: 3px; }
+.cov-bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; border: 0.5px solid var(--border-light); }
+.alert-box { padding: 10px 14px; border-radius: var(--radius-md); font-size: 13px; margin-bottom: 1rem; display: flex; gap: 10px; align-items: flex-start; }
+.a-ok { background: #EAF3DE; border: 0.5px solid #C0DD97; color: #27500A; }
+.a-err { background: #FCEBEB; border: 0.5px solid #F7C1C1; color: #A32D2D; }
+.a-info { background: #E6F1FB; border: 0.5px solid #B5D4F4; color: #185FA5; }
+.gap-pill { display: inline-block; background: rgba(163,45,45,0.12); color: #A32D2D; border-radius: 4px; padding: 1px 6px; margin: 2px 3px 2px 0; font-size: 11px; font-weight: 500; }
+.sum-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 8px; margin-top: 1rem; }
+.sum-card { background: var(--bg-secondary); border-radius: var(--radius-md); padding: 10px 12px; }
+.sum-lbl { font-size: 11px; color: var(--text-tertiary); margin-bottom: 2px; }
+.sum-val { font-size: 22px; font-weight: 500; }
+.sum-sub { font-size: 11px; color: var(--text-secondary); }
+.status-bar { padding: 10px 14px; border-radius: var(--radius-md); font-size: 13px; margin-bottom: 1rem; background: var(--bg-secondary); color: var(--text-secondary); border: 0.5px solid var(--border-light); line-height: 1.6; }
+.block-item { background: var(--bg-secondary); border-radius: var(--radius-md); padding: 10px 14px; margin-bottom: 6px; font-size: 13px; display: flex; justify-content: space-between; align-items: center; }
+.badge-now { background: #EAF3DE; color: #27500A; font-size: 11px; padding: 2px 7px; border-radius: var(--radius-sm); font-weight: 500; }
+.card { background: var(--bg-primary); border: 0.5px solid var(--border-light); border-radius: var(--radius-lg); padding: 1rem 1.25rem; margin-bottom: 1rem; }
+.card-title { font-size: 14px; font-weight: 500; margin-bottom: .75rem; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+.form-row.three { grid-template-columns: 1fr 1fr 1fr; }
+label { font-size: 12px; color: var(--text-secondary); display: block; margin-bottom: 3px; }
+select, input[type=time] { width: 100%; font-size: 13px; padding: 7px 9px; border: 0.5px solid var(--border-mid); border-radius: var(--radius-md); background: var(--bg-primary); color: var(--text-primary); font-family: var(--font); }
+.btn-row { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+.bp { padding: 8px 18px; font-size: 13px; border: 0.5px solid var(--border-strong); border-radius: var(--radius-md); cursor: pointer; background: var(--text-primary); color: var(--bg-primary); font-family: var(--font); }
+.bs { padding: 8px 18px; font-size: 13px; border: 0.5px solid var(--border-mid); border-radius: var(--radius-md); cursor: pointer; background: transparent; color: var(--text-primary); font-family: var(--font); }
+.bd { padding: 8px 18px; font-size: 13px; border: 0.5px solid #A32D2D; border-radius: var(--radius-md); cursor: pointer; background: #FCEBEB; color: #A32D2D; font-family: var(--font); }
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 200; align-items: center; justify-content: center; padding: 1rem; }
+.modal-overlay.open { display: flex; }
+.modal { background: var(--bg-primary); border-radius: var(--radius-lg); border: 0.5px solid var(--border-light); padding: 1.5rem; width: 100%; max-width: 440px; max-height: 90vh; overflow-y: auto; }
+.modal-title { font-size: 15px; font-weight: 500; margin-bottom: .75rem; }
+.modal-agent-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 0.5px solid var(--border-light); }
+.modal-agent-row:last-child { border-bottom: none; }
+.slot-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px,1fr)); gap: 5px; margin-top: .5rem; }
+.slot-item { border-radius: var(--radius-sm); padding: 5px 8px; font-size: 12px; }
+@media (max-width: 600px) {
+  .form-row.three { grid-template-columns: 1fr 1fr; }
+  .sum-grid { grid-template-columns: 1fr 1fr; }
+  body { padding: 0.75rem 0.5rem; }
+  .container { padding: 1rem; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="app-header">
+    <div><div class="app-title">Member Ops Schedule</div><div class="app-meta">Mending · Ebony (EST) · Marisa & Ky (CST) · Manager view in PST</div></div>
+    <div class="save-indicator"><div class="save-dot" id="save-dot"></div><span id="save-text">Loading...</span></div>
+  </div>
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('manager')">Manager view</button>
+    <button class="tab" onclick="switchTab('agent')">Agent view</button>
+    <button class="tab" onclick="switchTab('edit')">Edit schedule</button>
+    <button class="tab" onclick="switchTab('coverage')">Coverage check</button>
+  </div>
+  <div id="view-manager" class="view active">
+    <div class="day-select" id="mgr-days"></div>
+    <div class="ob-row" id="ob-row"><div class="ob-label" id="ob-label"></div><label class="toggle-switch"><input type="checkbox" id="ob-toggle" onchange="onOBToggle()"><span class="toggle-slider"></span></label></div>
+    <div id="mgr-alert"></div>
+    <div class="cov-bar-wrap" id="mgr-cov"></div>
+    <div class="legend" id="legend"></div>
+    <div id="mgr-timelines"></div>
+    <div class="sum-grid" id="mgr-summary"></div>
+  </div>
+  <div id="view-agent" class="view">
+    <div class="agent-select" id="agent-selector"></div>
+    <div class="day-select" id="agent-days"></div>
+    <div id="agent-tl" style="margin-bottom:10px"></div>
+    <div class="status-bar" id="agent-status"></div>
+    <div id="agent-blocks"></div>
+  </div>
+  <div id="view-edit" class="view">
+    <div class="alert-box a-info" style="margin-bottom:1rem"><span>Click any block on a timeline to pre-fill the form, or fill it out manually.</span></div>
+    <div class="card">
+      <div class="card-title">Edit a time block</div>
+      <div class="form-row three">
+        <div><label>Agent</label><select id="edit-agent"><option>Ebony</option><option>Marisa</option><option>Ky</option></select></div>
+        <div><label>Day</label><select id="edit-day" onchange="onEditDayChange()"></select></div>
+        <div><label>Activity</label><select id="edit-activity"></select></div>
+      </div>
+      <div class="form-row"><div><label>New start time</label><input type="time" id="edit-start"></div><div><label>New end time</label><input type="time" id="edit-end"></div></div>
+      <div id="edit-fri-row" style="display:none;margin-bottom:10px"><label>Friday week</label><select id="edit-fri-week"><option value="1">AH Week 1</option><option value="2">AH Week 2</option><option value="3">AH Week 3</option></select></div>
+      <div class="btn-row"><button class="bp" onclick="applyEdit()">Apply change</button><button class="bs" onclick="resetSchedule()">Reset to original</button></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Add a new block</div>
+      <div class="form-row three">
+        <div><label>Agent</label><select id="add-agent"><option>Ebony</option><option>Marisa</option><option>Ky</option></select></div>
+        <div><label>Day</label><select id="add-day" onchange="onAddDayChange()"></select></div>
+        <div><label>Activity</label><select id="add-activity"></select></div>
+      </div>
+      <div class="form-row"><div><label>Start time</label><input type="time" id="add-start"></div><div><label>End time</label><input type="time" id="add-end"></div></div>
+      <div id="add-fri-row" style="display:none;margin-bottom:10px"><label>Friday week</label><select id="add-fri-week"><option value="1">AH Week 1</option><option value="2">AH Week 2</option><option value="3">AH Week 3</option></select></div>
+      <div class="btn-row"><button class="bp" onclick="addBlock()">Add block</button></div>
+    </div>
+  </div>
+  <div id="view-coverage" class="view">
+    <div class="day-select" id="cov-days"></div>
+    <div id="cov-detail"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="redist-modal">
+  <div class="modal">
+    <div class="modal-title" id="redist-title">Redistribute time?</div>
+    <p style="font-size:13px;color:var(--text-secondary);margin-bottom:1rem" id="redist-desc"></p>
+    <div id="redist-agents"></div>
+    <div class="btn-row" style="margin-top:1rem"><button class="bp" onclick="confirmRedist()">Apply redistribution</button><button class="bs" onclick="closeRedist()">Skip, just save</button></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="cov-modal">
+  <div class="modal">
+    <div class="modal-title" style="color:#A32D2D">Coverage gap detected</div>
+    <p style="font-size:13px;color:var(--text-secondary);margin-bottom:.75rem" id="cov-modal-desc"></p>
+    <div id="cov-modal-gaps" style="margin-bottom:1rem"></div>
+    <p style="font-size:12px;color:var(--text-tertiary);margin-bottom:1rem">No agent will be on inbound phones during these windows. Save anyway or go back and adjust?</p>
+    <div class="btn-row"><button class="bd" onclick="forceApply()">Save anyway</button><button class="bs" onclick="closeCovModal()">Go back and adjust</button></div>
+  </div>
+</div>
+
+<script>
+const COLORS={'On Phones':{bg:'#B5D4F4',text:'#0C447C'},'Outbound':{bg:'#9FE1CB',text:'#085041'},'Ticket Time':{bg:'#CECBF6',text:'#3C3489'},'Break 1':{bg:'#D3D1C7',text:'#444441'},'Break 2':{bg:'#D3D1C7',text:'#444441'},'Lunch':{bg:'#FAC775',text:'#633806'},'Weekly Sync':{bg:'#F4C0D1',text:'#72243E'},'Project Time':{bg:'#C0DD97',text:'#27500A'},'1:1':{bg:'#F5C4B3',text:'#712B13'},'All Hands':{bg:'#EF9F27',text:'#412402'}};
+const ACTIVITIES=Object.keys(COLORS);
+const DAYS=['Monday','Tuesday','Wednesday','Thursday','Friday'];
+const AGENTS=['Ebony','Marisa','Ky'];
+const ATZ={Ebony:'EST',Marisa:'CST',Ky:'CST'};
+const TO_PST={EST:-3,CST:-2,PST:0};
+const TO_EST={EST:0,CST:1,PST:3};
+const COV_S=540,COV_E=1080;
+const SK='mending-sched-v1',FK='mending-fri-v1',OK='mending-ob-v1';
+
+function t2m(t){const[h,m]=t.split(':').map(Number);return h*60+m;}
+function m2t(m){m=((m%1440)+1440)%1440;return`${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;}
+function m2d(m){m=((m%1440)+1440)%1440;const h=Math.floor(m/60),mn=m%60,ap=h>=12?'pm':'am',hh=h>12?h-12:(h===0?12:h);return`${hh}${mn?':'+String(mn).padStart(2,'0'):''}${ap}`;}
+
+const BASE={Ebony:{Monday:[['On Phones','09:00','11:00'],['Break 1','11:00','11:15'],['On Phones','11:15','13:15'],['Break 2','13:15','13:30'],['Outbound','13:30','15:00'],['Lunch','15:00','15:30'],['On Phones','15:30','16:15'],['Ticket Time','16:15','17:00']],Tuesday:[['On Phones','09:00','11:00'],['Break 1','11:00','11:15'],['On Phones','11:15','12:15'],['Weekly Sync','12:15','12:45'],['On Phones','12:45','13:00'],['Break 2','13:00','13:15'],['Outbound','13:15','14:45'],['Lunch','14:45','15:15'],['Project Time','15:15','16:15'],['Ticket Time','16:15','17:00']],Wednesday:[['On Phones','09:00','11:00'],['Break 1','11:00','11:15'],['On Phones','11:15','12:00'],['1:1','12:00','12:30'],['On Phones','12:30','13:15'],['Break 2','13:15','13:30'],['On Phones','13:30','14:00'],['Outbound','14:00','15:30'],['Lunch','15:30','16:00'],['On Phones','16:00','16:15'],['Ticket Time','16:15','17:00']],Thursday:[['On Phones','09:00','11:00'],['Break 1','11:00','11:15'],['On Phones','11:15','13:15'],['Break 2','13:15','13:30'],['On Phones','13:30','14:00'],['Outbound','14:00','15:30'],['Lunch','15:30','16:00'],['On Phones','16:00','16:15'],['Ticket Time','16:15','17:00']]},Marisa:{Monday:[['Ticket Time','08:30','09:15'],['On Phones','09:15','10:45'],['Break 1','10:45','11:00'],['On Phones','11:00','14:15'],['Lunch','14:15','14:45'],['Break 2','14:45','15:00'],['Outbound','15:00','16:30']],Tuesday:[['Ticket Time','08:30','09:15'],['On Phones','09:15','10:45'],['Break 1','10:45','11:00'],['On Phones','11:00','11:15'],['Weekly Sync','11:15','11:45'],['On Phones','11:45','12:30'],['1:1','12:30','13:00'],['On Phones','13:00','14:00'],['Break 2','14:00','14:15'],['Lunch','14:15','14:45'],['On Phones','14:45','15:00'],['Outbound','15:00','16:30']],Wednesday:[['Ticket Time','08:30','09:15'],['On Phones','09:15','10:45'],['Break 1','10:45','11:00'],['On Phones','11:00','14:00'],['Break 2','14:00','14:15'],['Lunch','14:15','14:45'],['On Phones','14:45','15:00'],['Outbound','15:00','16:30']],Thursday:[['Ticket Time','08:30','09:15'],['On Phones','09:15','10:45'],['Break 1','10:45','11:00'],['Project Time','11:00','12:00'],['On Phones','12:00','14:00'],['Break 2','14:00','14:15'],['Lunch','14:15','14:45'],['On Phones','14:45','15:00'],['Outbound','15:00','16:30']]},Ky:{Monday:[['Ticket Time','09:00','09:45'],['Outbound','09:45','11:15'],['On Phones','11:15','11:30'],['Lunch','11:30','12:00'],['Break 1','12:00','12:15'],['On Phones','12:15','15:00'],['Break 2','15:00','15:15'],['On Phones','15:15','17:00']],Tuesday:[['Ticket Time','09:00','09:45'],['Outbound','09:45','11:15'],['Weekly Sync','11:15','11:45'],['Lunch','11:45','12:15'],['Break 1','12:15','12:30'],['On Phones','12:30','14:45'],['Break 2','14:45','15:00'],['On Phones','15:00','17:00']],Wednesday:[['Ticket Time','09:00','09:45'],['Outbound','09:45','11:15'],['On Phones','11:15','11:30'],['Lunch','11:30','12:00'],['Break 1','12:00','12:15'],['Project Time','12:15','13:15'],['On Phones','13:15','15:00'],['Break 2','15:00','15:15'],['On Phones','15:15','17:00']],Thursday:[['Ticket Time','09:00','09:45'],['Outbound','09:45','11:15'],['On Phones','11:15','11:45'],['Lunch','11:45','12:15'],['Break 1','12:15','12:30'],['1:1','12:30','13:00'],['On Phones','13:00','15:00'],['Break 2','15:00','15:15'],['On Phones','15:15','17:00']]}};
+const BF={1:{Ebony:[['On Phones','09:00','11:00'],['Break 1','11:00','11:15'],['On Phones','11:15','13:15'],['Break 2','13:15','13:30'],['Lunch','13:30','14:00'],['On Phones','14:00','15:00'],['All Hands','15:00','15:45'],['On Phones','15:45','16:00'],['Ticket Time','16:00','17:00']],Marisa:[['Ticket Time','08:30','09:00'],['On Phones','09:00','10:15'],['Break 1','10:15','10:30'],['On Phones','10:30','13:15'],['Break 2','13:15','13:30'],['On Phones','13:30','14:45'],['Lunch','14:45','15:15'],['On Phones','15:15','16:00'],['Ticket Time','16:00','16:30']],Ky:[['Ticket Time','09:00','10:00'],['On Phones','10:00','11:30'],['Lunch','11:30','12:00'],['Break 1','12:00','12:15'],['On Phones','12:15','15:15'],['Break 2','15:15','15:30'],['On Phones','15:30','17:00']]},2:{Ebony:[['On Phones','09:00','11:00'],['Break 1','11:00','11:15'],['On Phones','11:15','13:15'],['Break 2','13:15','13:30'],['Lunch','13:30','14:00'],['On Phones','14:00','16:00'],['Ticket Time','16:00','17:00']],Marisa:[['Ticket Time','08:30','09:00'],['On Phones','09:00','10:15'],['Break 1','10:15','10:30'],['On Phones','10:30','13:15'],['Break 2','13:15','13:30'],['On Phones','13:30','14:00'],['All Hands','14:00','14:45'],['Lunch','14:45','15:15'],['On Phones','15:15','16:00'],['Ticket Time','16:00','16:30']],Ky:[['Ticket Time','09:00','10:00'],['On Phones','10:00','11:30'],['Lunch','11:30','12:00'],['Break 1','12:00','12:15'],['On Phones','12:15','15:15'],['Break 2','15:15','15:30'],['On Phones','15:30','17:00']]},3:{Ebony:[['On Phones','09:00','11:00'],['Break 1','11:00','11:15'],['On Phones','11:15','13:15'],['Break 2','13:15','13:30'],['Lunch','13:30','14:00'],['On Phones','14:00','16:00'],['Ticket Time','16:00','17:00']],Marisa:[['Ticket Time','08:30','09:00'],['On Phones','09:00','10:15'],['Break 1','10:15','10:30'],['On Phones','10:30','13:15'],['Break 2','13:15','13:30'],['On Phones','13:30','14:45'],['Lunch','14:45','15:15'],['On Phones','15:15','16:00'],['Ticket Time','16:00','16:30']],Ky:[['Ticket Time','09:00','10:00'],['On Phones','10:00','11:30'],['Lunch','11:30','12:00'],['Break 1','12:00','12:15'],['On Phones','12:15','14:00'],['All Hands','14:00','14:45'],['On Phones','14:45','15:15'],['Break 2','15:15','15:30'],['On Phones','15:30','17:00']]}};
+
+const ROT=[3,1,2];
+const AF=new Date('2026-04-18');
+function gfw(d){const diff=Math.round((d-AF)/(7*24*3600*1000));return ROT[((diff%3)+3)%3];}
+const td=new Date(),dtf=(5-td.getDay()+7)%7||7,tf=new Date(td);
+tf.setDate(td.getDate()+(td.getDay()===5?0:dtf));
+
+let sched=JSON.parse(JSON.stringify(BASE)),fsched=JSON.parse(JSON.stringify(BF));
+let noOB={Monday:false,Tuesday:false,Wednesday:false,Thursday:false};
+let pRed=null,pForce=null;
+let mDay='Monday',mFW=gfw(tf),aView='Ebony',aDay='Monday',aFW=gfw(tf),cDay='Monday',cFW=gfw(tf);
+
+function save(){
+  setSS('saving');
+  try{localStorage.setItem(SK,JSON.stringify(sched));localStorage.setItem(FK,JSON.stringify(fsched));localStorage.setItem(OK,JSON.stringify(noOB));setSS('saved');}
+  catch(e){setSS('error');}
+}
+function load(){
+  try{const s=localStorage.getItem(SK),f=localStorage.getItem(FK),o=localStorage.getItem(OK);if(s)sched=JSON.parse(s);if(f)fsched=JSON.parse(f);if(o)noOB=JSON.parse(o);setSS('saved');}
+  catch(e){setSS('saved');}
+  renderAll();
+}
+function setSS(st){
+  const dot=document.getElementById('save-dot'),txt=document.getElementById('save-text');
+  const m={loading:['#BA7517','Loading...'],saving:['#BA7517','Saving...'],saved:['#639922','All changes saved'],error:['#A32D2D','Save failed']};
+  const[c,l]=m[st]||m.saved;if(dot)dot.style.background=c;if(txt)txt.textContent=l;
+}
+
+function gBlocks(agent,day,fw,tS,tF){
+  let b=day==='Friday'?(tF||fsched)[fw][agent]||[]:(tS||sched)[agent][day]||[];
+  if(day!=='Friday'&&noOB[day]){b=mergeOP(b.map(x=>x[0]==='Outbound'?['On Phones',x[1],x[2]]:x));}
+  return b;
+}
+function mergeOP(b){
+  if(!b.length)return b;
+  const s=[...b].sort((a,x)=>t2m(a[1])-t2m(x[1]));
+  const m=[];let c=s[0];
+  for(let i=1;i<s.length;i++){const n=s[i];if(c[0]==='On Phones'&&n[0]==='On Phones'&&t2m(c[2])===t2m(n[1])){c=['On Phones',c[1],n[2]];}else{m.push(c);c=n;}}
+  m.push(c);return m;
+}
+function onOBToggle(){
+  if(mDay==='Friday')return;
+  noOB[mDay]=document.getElementById('ob-toggle').checked;save();renderAll();
+}
+function updateOBUI(){
+  const row=document.getElementById('ob-row'),lbl=document.getElementById('ob-label'),tog=document.getElementById('ob-toggle');
+  if(mDay==='Friday'){row.style.display='none';return;}
+  row.style.display='flex';tog.checked=noOB[mDay];
+  lbl.innerHTML=noOB[mDay]
+    ?`<strong>No outbound calls today</strong> — agents on inbound during outbound blocks <span class="ob-badge noob">No Outbound</span>`
+    :`<strong>Outbound calls active</strong> — toggle off if no outbound today <span class="ob-badge">With Outbound</span>`;
+}
+function toPST(blocks,tz){const o=TO_PST[tz]||0;return blocks.map(b=>[b[0],m2t(t2m(b[1])+o*60),m2t(t2m(b[2])+o*60)]);}
+function nowFor(tz){const o={EST:-5,CST:-6,PST:-8}[tz]||0,u=Date.now()+(new Date().getTimezoneOffset()*60000),d=new Date(u+o*3600000);return d.getHours()*60+d.getMinutes();}
+
+function getCov(day,fw,tS,tF){
+  const sl=new Array(36).fill(0);
+  AGENTS.forEach(a=>{
+    const eo=TO_EST[ATZ[a]],bl=gBlocks(a,day,fw,tS,tF);
+    bl.forEach(b=>{if(b[0]!=='On Phones')return;const se=t2m(b[1])+eo*60,ee=t2m(b[2])+eo*60;for(let i=0;i<36;i++){const ss=COV_S+i*15,se2=ss+15;if(se<se2&&ee>ss)sl[i]++;}});
+  });
+  const g=[];let gs=null;
+  for(let i=0;i<36;i++){if(sl[i]===0){if(gs===null)gs=COV_S+i*15;}else{if(gs!==null){g.push({start:gs,end:COV_S+i*15});gs=null;}}}
+  if(gs!==null)g.push({start:gs,end:COV_E});
+  return{slots:sl,gaps:g};
+}
+function fmtGaps(g){return g.map(x=>`${m2d(x.start)}–${m2d(x.end)} EST`);}
+function renderCovBar(day,fw,barId,alertId){
+  const{slots,gaps}=getCov(day,fw);
+  if(alertId){const el=document.getElementById(alertId);if(gaps.length===0){el.innerHTML=`<div class="alert-box a-ok"><span>✓</span><div>Full inbound coverage 9am–6pm EST</div></div>`;}else{el.innerHTML=`<div class="alert-box a-err"><span>!</span><div><strong>${gaps.length} coverage gap${gaps.length>1?'s':''}</strong><div style="margin-top:4px">${fmtGaps(gaps).map(g=>`<span class="gap-pill">${g}</span>`).join('')}</div></div></div>`;}}
+  if(barId){const segs=slots.map((c,i)=>{const bg=c===0?'#FCEBEB':c===1?'#EAF3DE':'#B5D4F4';return`<div style="width:${100/36}%;background:${bg};height:100%" title="${m2d(COV_S+i*15)} EST — ${c} agent${c!==1?'s':''}"></div>`;}).join('');document.getElementById(barId).innerHTML=`<div class="cov-bar-meta"><span>Inbound coverage 9am–6pm EST</span><span>Red=gap · Green=1 agent · Blue=2+</span></div><div class="cov-bar">${segs}</div>`;}
+}
+
+function buildLegend(){document.getElementById('legend').innerHTML=Object.entries(COLORS).map(([k,v])=>`<div class="legend-item"><div class="legend-dot" style="background:${v.bg}"></div><span>${k}</span></div>`).join('');}
+function buildDayBtns(id,ad,afw,df,ff){
+  let h=DAYS.map(d=>`<button class="day-btn ${d===ad?'active':''}" onclick="${df}('${d}')">${d.slice(0,3)}</button>`).join('');
+  if(ad==='Friday'){h+=`<span class="fri-label">Week:</span><div class="fri-toggle">${[1,2,3].map(w=>`<button class="fri-btn ${w===afw?'active':''}" onclick="${ff}(${w})">AH${w}</button>`).join('')}</div>`;}
+  document.getElementById(id).innerHTML=h;
+}
+
+function buildBar(blocks,h,clickable,agent,day,fw){
+  if(!blocks.length)return'';
+  const bS=Math.min(...blocks.map(b=>t2m(b[1]))),bE=Math.max(...blocks.map(b=>t2m(b[2]))),tot=bE-bS;
+  const tz=ATZ[agent],nowM=h>25?nowFor(tz):nowFor('PST'),inDay=nowM>=bS&&nowM<=bE;
+  let html=`<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-tertiary);margin-bottom:2px"><span>${m2d(bS)}</span><span>${m2d(bE)}</span></div>`;
+  html+=`<div class="tl-bar" style="height:${h}px">`;
+  blocks.forEach(b=>{
+    const s=t2m(b[1]),e=t2m(b[2]),w=((e-s)/tot*100).toFixed(2);
+    const c=COLORS[b[0]]||{bg:'#D3D1C7',text:'#444441'};
+    const lbl=h>25&&parseFloat(w)>7?b[0]:'';
+    html+=`<div class="tl-block" style="width:${w}%;background:${c.bg};color:${c.text};font-size:${h>25?10:9}px" title="${b[0]}: ${m2d(s)}–${m2d(e)}" ${clickable?`onclick="clickBlock('${agent}','${day}',${s},${e},'${b[0]}',${fw})"`:''}>
+      <span style="pointer-events:none;overflow:hidden">${lbl}</span></div>`;
+  });
+  if(inDay){const pct=((nowM-bS)/tot*100).toFixed(2);html+=`<div class="now-line" style="left:${pct}%">${h>25?'<span class="now-lbl">now</span>':''}</div>`;}
+  html+=`</div>`;return html;
+}
+
+function renderDualTL(agent,day,fw,container){
+  const tz=ATZ[agent],blocks=gBlocks(agent,day,fw),pst=toPST(blocks,tz);
+  if(!blocks.length){container.innerHTML='<p style="font-size:12px;color:var(--text-tertiary)">No blocks</p>';return;}
+  container.innerHTML=`<div class="dual-wrap">
+    <div class="tl-row"><div class="tl-tz" style="color:#185FA5">${tz}</div><div class="tl-outer">${buildBar(blocks,40,true,agent,day,fw)}</div></div>
+    <div class="tl-row"><div class="tl-tz" style="color:var(--text-tertiary)">PST</div><div class="tl-outer" style="opacity:0.6">${buildBar(pst,22,false,agent,day,fw)}</div></div>
+  </div>`;
+}
+
+function renderManager(){
+  buildDayBtns('mgr-days',mDay,mFW,'setMDay','setMFW');updateOBUI();
+  renderCovBar(mDay,mFW,'mgr-cov','mgr-alert');
+  const wrap=document.getElementById('mgr-timelines');wrap.innerHTML='';
+  AGENTS.forEach(a=>{
+    const tz=ATZ[a],div=document.createElement('div');div.className='agent-row';
+    div.innerHTML=`<div class="agent-header"><div class="agent-name">${a}</div><div class="tz-pills"><span class="tz-pill agent">${tz}</span><span style="font-size:10px;color:var(--text-tertiary)">·</span><span class="tz-pill pst">PST</span></div></div><div id="tl-${a}"></div>`;
+    wrap.appendChild(div);renderDualTL(a,mDay,mFW,div.querySelector(`#tl-${a}`));
+  });
+  let ph=0,ob=0,tot=0;
+  AGENTS.forEach(a=>{gBlocks(a,mDay,mFW).forEach(b=>{const d=t2m(b[2])-t2m(b[1]);if(b[0]==='On Phones')ph+=d;if(b[0]==='Outbound')ob+=d;tot+=d;});});
+  document.getElementById('mgr-summary').innerHTML=`
+    <div class="sum-card"><div class="sum-lbl">Inbound coverage</div><div class="sum-val">${(ph/60).toFixed(1)}h</div><div class="sum-sub">across all agents</div></div>
+    <div class="sum-card"><div class="sum-lbl">Outbound coverage</div><div class="sum-val">${(ob/60).toFixed(1)}h</div><div class="sum-sub">${mDay!=='Friday'&&noOB[mDay]?'No outbound today':'across all agents'}</div></div>
+    <div class="sum-card"><div class="sum-lbl">Avg per agent</div><div class="sum-val">${(tot/3/60).toFixed(1)}h</div><div class="sum-sub">scheduled today</div></div>`;
+}
+function setMDay(d){mDay=d;renderManager();}function setMFW(w){mFW=w;renderManager();}
+
+function renderAgent(){
+  document.getElementById('agent-selector').innerHTML=AGENTS.map(a=>`<button class="agent-btn ${a===aView?'active':''}" onclick="setAV('${a}')">${a}</button>`).join('');
+  buildDayBtns('agent-days',aDay,aFW,'setAD','setAFW');
+  const blocks=gBlocks(aView,aDay,aFW),tz=ATZ[aView],tWrap=document.getElementById('agent-tl');
+  if(!blocks.length){tWrap.innerHTML='<p style="font-size:12px;color:var(--text-tertiary)">No blocks</p>';}
+  else{
+    const bS=Math.min(...blocks.map(b=>t2m(b[1]))),bE=Math.max(...blocks.map(b=>t2m(b[2]))),tot=bE-bS;
+    const nowM=nowFor(tz),inDay=nowM>=bS&&nowM<=bE;
+    let h=`<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-tertiary);margin-bottom:2px"><span>${m2d(bS)} <span style="opacity:0.6">${tz}</span></span><span>${m2d(bE)} <span style="opacity:0.6">${tz}</span></span></div><div class="tl-bar" style="height:42px">`;
+    blocks.forEach(b=>{const s=t2m(b[1]),e=t2m(b[2]),w=((e-s)/tot*100).toFixed(2),c=COLORS[b[0]]||{bg:'#D3D1C7',text:'#444441'},lbl=parseFloat(w)>7?b[0]:'';h+=`<div class="tl-block" style="width:${w}%;background:${c.bg};color:${c.text};font-size:10px" title="${b[0]}: ${m2d(s)}–${m2d(e)} ${tz}" onclick="clickBlock('${aView}','${aDay}',${s},${e},'${b[0]}',${aFW})"><span style="pointer-events:none">${lbl}</span></div>`;});
+    if(inDay){const pct=((nowM-bS)/tot*100).toFixed(2);h+=`<div class="now-line" style="left:${pct}%"><span class="now-lbl">now</span></div>`;}
+    tWrap.innerHTML=h+`</div>`;
+  }
+  const nowM=nowFor(ATZ[aView]);let cur=null,nxt=null;
+  blocks.forEach(b=>{const s=t2m(b[1]),e=t2m(b[2]);if(nowM>=s&&nowM<e)cur=b;if(!nxt&&s>nowM)nxt=b;});
+  const se=document.getElementById('agent-status'),tz=ATZ[aView];
+  if(cur){const c=COLORS[cur[0]]||{bg:'#D3D1C7',text:'#444441'};se.innerHTML=`<span style="font-size:11px;color:var(--text-tertiary)">Right now (${tz})</span><br><strong style="font-size:15px;color:${c.text}">${cur[0]}</strong> until ${m2d(t2m(cur[2]))}${nxt?` &nbsp;·&nbsp; Next: <strong>${nxt[0]}</strong> at ${m2d(t2m(nxt[1]))}`:''}`;
+  }else{se.innerHTML=`<span style="color:var(--text-tertiary)">Shift not currently active (${tz})</span>${nxt?` — next: <strong>${nxt[0]}</strong> at ${m2d(t2m(nxt[1]))}`:''}`;
+  }
+  const poff=TO_PST[tz]||0;
+  document.getElementById('agent-blocks').innerHTML=blocks.map(b=>{
+    const s=t2m(b[1]),e=t2m(b[2]),dur=e-s,isNow=nowM>=s&&nowM<e,c=COLORS[b[0]]||{bg:'#D3D1C7',text:'#444441'};
+    return`<div class="block-item" style="${isNow?`border-left:3px solid ${c.bg};`:''}"><div><strong>${b[0]}</strong><span style="font-size:12px;color:var(--text-secondary);margin-left:8px">${m2d(s)}–${m2d(e)} <span style="color:#185FA5">${tz}</span></span><span style="font-size:11px;color:var(--text-tertiary);margin-left:6px">${m2d(s+poff*60)}–${m2d(e+poff*60)} PST</span><span style="font-size:11px;color:var(--text-tertiary);margin-left:6px">(${dur}m)</span></div>${isNow?`<span class="badge-now">Now</span>`:''}</div>`;
+  }).join('');
+}
+function setAV(a){aView=a;renderAgent();}function setAD(d){aDay=d;renderAgent();}function setAFW(w){aFW=w;renderAgent();}
+
+function renderCovTab(){
+  buildDayBtns('cov-days',cDay,cFW,'setCD','setCFW');
+  const{slots,gaps}=getCov(cDay,cFW);
+  let h=gaps.length===0
+    ?`<div class="alert-box a-ok"><span>✓</span><div><strong>Full coverage confirmed</strong> — at least 1 agent on inbound phones every 15-min slot, 9am–6pm EST.</div></div>`
+    :`<div class="alert-box a-err"><span>!</span><div><strong>${gaps.length} gap${gaps.length>1?'s':''} detected</strong><div style="margin-top:4px">${fmtGaps(gaps).map(g=>`<span class="gap-pill">${g}</span>`).join('')}</div></div></div>`;
+  h+=`<div class="card"><div class="card-title">15-min slot breakdown — 9am to 6pm EST</div><div class="slot-grid">`;
+  slots.forEach((c,i)=>{const ss=COV_S+i*15,bg=c===0?'#FCEBEB':c===1?'#EAF3DE':'#B5D4F4',tx=c===0?'#A32D2D':c===1?'#27500A':'#0C447C';h+=`<div class="slot-item" style="background:${bg};color:${tx}"><span style="font-weight:500">${m2d(ss)}</span> <span style="opacity:0.75">${c} agent${c!==1?'s':''}</span></div>`;});
+  document.getElementById('cov-detail').innerHTML=h+`</div></div>`;
+}
+function setCD(d){cDay=d;renderCovTab();}function setCFW(w){cFW=w;renderCovTab();}
+
+function clickBlock(agent,day,s,e,act,fw){
+  document.getElementById('edit-agent').value=agent;document.getElementById('edit-day').value=day;
+  document.getElementById('edit-activity').value=act;document.getElementById('edit-start').value=m2t(s);
+  document.getElementById('edit-end').value=m2t(e);document.getElementById('edit-fri-week').value=fw;
+  document.getElementById('edit-fri-row').style.display=day==='Friday'?'block':'none';switchTab('edit');
+}
+function onEditDayChange(){document.getElementById('edit-fri-row').style.display=document.getElementById('edit-day').value==='Friday'?'block':'none';}
+function onAddDayChange(){document.getElementById('add-fri-row').style.display=document.getElementById('add-day').value==='Friday'?'block':'none';}
+function populateSelects(){
+  ['edit-activity','add-activity'].forEach(id=>{document.getElementById(id).innerHTML=ACTIVITIES.map(a=>`<option>${a}</option>`).join('');});
+  ['edit-day','add-day'].forEach(id=>{document.getElementById(id).innerHTML=DAYS.map(d=>`<option>${d}</option>`).join('');});
+}
+function applyEdit(){
+  const agent=document.getElementById('edit-agent').value,day=document.getElementById('edit-day').value,act=document.getElementById('edit-activity').value;
+  const ns=document.getElementById('edit-start').value,ne=document.getElementById('edit-end').value;
+  if(!ns||!ne){alert('Please fill in start and end times.');return;}
+  const fw=parseInt(document.getElementById('edit-fri-week').value);
+  const tS=JSON.parse(JSON.stringify(sched)),tF=JSON.parse(JSON.stringify(fsched));
+  const blocks=day==='Friday'?tF[fw][agent]:tS[agent][day];
+  const idx=blocks.findIndex(b=>b[0]===act);if(idx===-1){alert('Block not found. Try adding it instead.');return;}
+  const oldD=t2m(blocks[idx][2])-t2m(blocks[idx][1]);blocks[idx]=[act,ns,ne];
+  const delta=t2m(ne)-t2m(ns)-oldD;
+  const{gaps}=getCov(day,fw,tS,tF);
+  if(gaps.length>0){
+    document.getElementById('cov-modal-desc').textContent=`Changing ${agent}'s ${act} on ${day}${day==='Friday'?' (AH Week '+fw+')':''} would create inbound coverage gaps:`;
+    document.getElementById('cov-modal-gaps').innerHTML=fmtGaps(gaps).map(g=>`<span class="gap-pill">${g}</span>`).join('');
+    pForce={agent,day,act,ns,ne,fw,delta};document.getElementById('cov-modal').classList.add('open');
+  }else{commitEdit(agent,day,act,ns,ne,fw,delta);}
+}
+function forceApply(){if(!pForce)return;const{agent,day,act,ns,ne,fw,delta}=pForce;closeCovModal();commitEdit(agent,day,act,ns,ne,fw,delta);}
+function commitEdit(agent,day,act,ns,ne,fw,delta){
+  const blocks=day==='Friday'?fsched[fw][agent]:sched[agent][day];
+  const idx=blocks.findIndex(b=>b[0]===act);if(idx>-1)blocks[idx]=[act,ns,ne];
+  if(delta!==0)showRedistModal(agent,day,act,delta,fw);else{save();renderAll();}
+}
+function addBlock(){
+  const agent=document.getElementById('add-agent').value,day=document.getElementById('add-day').value,act=document.getElementById('add-activity').value;
+  const s=document.getElementById('add-start').value,e=document.getElementById('add-end').value;
+  if(!s||!e){alert('Please fill in start and end times.');return;}
+  const fw=parseInt(document.getElementById('add-fri-week').value);
+  const blocks=day==='Friday'?fsched[fw][agent]:sched[agent][day];
+  blocks.push([act,s,e]);blocks.sort((a,b)=>t2m(a[1])-t2m(b[1]));save();renderAll();
+}
+function showRedistModal(cA,day,act,delta,fw){
+  const others=AGENTS.filter(a=>a!==cA);
+  document.getElementById('redist-title').textContent='Redistribute time to other agents?';
+  document.getElementById('redist-desc').textContent=`You changed ${cA}'s ${act} by ${delta>0?'+':''}${delta} min on ${day}${day==='Friday'?' (AH Week '+fw+')':''}. Apply same change to others?`;
+  document.getElementById('redist-agents').innerHTML=others.map(a=>{
+    const bl=day==='Friday'?fsched[fw][a]:sched[a][day],has=bl.some(b=>b[0]===act);
+    return`<div class="modal-agent-row"><div><div style="font-size:13px;font-weight:500">${a} <span style="font-size:11px;font-weight:400;color:var(--text-tertiary)">${ATZ[a]}</span></div><div style="font-size:12px;color:var(--text-secondary)">${has?`Has ${act} — adjust by ${delta>0?'+':''}${delta}m`:`No ${act} on this day`}</div></div><label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer"><input type="checkbox" id="rd-${a}" ${has?'checked':''} ${has?'':'disabled'}> Apply</label></div>`;
+  }).join('');
+  pRed={cA,day,act,delta,others,fw};document.getElementById('redist-modal').classList.add('open');
+}
+function confirmRedist(){
+  if(!pRed)return;const{day,act,delta,others,fw}=pRed;
+  others.forEach(a=>{const cb=document.getElementById(`rd-${a}`);if(cb&&cb.checked){const bl=day==='Friday'?fsched[fw][a]:sched[a][day];const idx=bl.findIndex(b=>b[0]===act);if(idx>-1)bl[idx][2]=m2t(t2m(bl[idx][2])+delta);}});
+  closeRedist();save();renderAll();
+}
+function closeRedist(){document.getElementById('redist-modal').classList.remove('open');pRed=null;}
+function closeCovModal(){document.getElementById('cov-modal').classList.remove('open');pForce=null;}
+function resetSchedule(){
+  if(!confirm('Reset all schedules to the original? This cannot be undone.'))return;
+  sched=JSON.parse(JSON.stringify(BASE));fsched=JSON.parse(JSON.stringify(BF));
+  noOB={Monday:false,Tuesday:false,Wednesday:false,Thursday:false};save();renderAll();
+}
+function renderAll(){renderManager();renderAgent();if(document.getElementById('view-coverage').classList.contains('active'))renderCovTab();}
+function switchTab(tab){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.querySelector(`.tab[onclick="switchTab('${tab}')"]`).classList.add('active');
+  document.getElementById(`view-${tab}`).classList.add('active');
+  if(tab==='coverage')renderCovTab();
+}
+
+setSS('loading');populateSelects();buildLegend();load();
+setInterval(()=>{renderManager();renderAgent();},60000);
+</script>
+</body>
+</html>
