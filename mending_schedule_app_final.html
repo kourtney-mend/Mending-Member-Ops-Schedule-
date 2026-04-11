@@ -1,0 +1,998 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mending — Member Ops Schedule</title>
+<style>
+:root {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f5f5f3;
+  --bg-tertiary: #eeede9;
+  --text-primary: #1a1a18;
+  --text-secondary: #5f5e5a;
+  --text-tertiary: #888780;
+  --border-light: rgba(0,0,0,0.1);
+  --border-mid: rgba(0,0,0,0.2);
+  --border-strong: rgba(0,0,0,0.32);
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-primary: #1c1c1a;
+    --bg-secondary: #252523;
+    --bg-tertiary: #2c2c2a;
+    --text-primary: #f0ede6;
+    --text-secondary: #a8a79f;
+    --text-tertiary: #666560;
+    --border-light: rgba(255,255,255,0.08);
+    --border-mid: rgba(255,255,255,0.16);
+    --border-strong: rgba(255,255,255,0.26);
+  }
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: var(--font);
+  background: var(--bg-tertiary);
+  min-height: 100vh;
+  padding: 1.5rem 1rem;
+  color: var(--text-primary);
+}
+.container {
+  max-width: 900px;
+  margin: 0 auto;
+  background: var(--bg-primary);
+  border-radius: var(--radius-lg);
+  border: 0.5px solid var(--border-light);
+  padding: 1.5rem;
+}
+.app-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 0.5px solid var(--border-light);
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.app-title { font-size: 16px; font-weight: 500; }
+.app-meta { font-size: 12px; color: var(--text-tertiary); }
+.save-indicator {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+.save-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: #639922;
+  flex-shrink: 0;
+  transition: background 0.3s;
+}
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 1.5rem;
+  border-bottom: 0.5px solid var(--border-light);
+  padding-bottom: 0;
+  flex-wrap: wrap;
+}
+.tab {
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 400;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  font-family: var(--font);
+}
+.tab.active {
+  color: var(--text-primary);
+  font-weight: 500;
+  border-bottom: 2px solid var(--text-primary);
+}
+.view { display: none; }
+.view.active { display: block; }
+.day-select {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.day-btn {
+  padding: 5px 12px;
+  font-size: 12px;
+  border: 0.5px solid var(--border-light);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font);
+}
+.day-btn.active {
+  background: var(--text-primary);
+  color: var(--bg-primary);
+}
+.fri-label { font-size: 11px; color: var(--text-tertiary); padding: 4px 0; margin-left: 4px; }
+.fri-toggle { display: flex; gap: 4px; }
+.fri-btn {
+  padding: 4px 9px;
+  font-size: 11px;
+  border: 0.5px solid var(--border-light);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  background: transparent;
+  color: var(--text-tertiary);
+  font-family: var(--font);
+}
+.fri-btn.active { background: #CECBF6; color: #3C3489; border-color: #AFA9EC; font-weight: 500; }
+.agent-select { display: flex; gap: 8px; margin-bottom: 1.25rem; flex-wrap: wrap; }
+.agent-btn {
+  padding: 6px 14px;
+  font-size: 13px;
+  border: 0.5px solid var(--border-mid);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  font-family: var(--font);
+}
+.agent-btn.active { background: var(--bg-secondary); color: var(--text-primary); font-weight: 500; }
+.legend { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 1.25rem; }
+.legend-item { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text-secondary); }
+.legend-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+.agent-row { margin-bottom: 1rem; }
+.agent-name {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.tz-badge {
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--bg-secondary);
+  color: var(--text-tertiary);
+  border: 0.5px solid var(--border-light);
+  text-transform: none;
+  letter-spacing: 0;
+}
+.tl-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--text-tertiary);
+  margin-bottom: 3px;
+}
+.tl-bar {
+  display: flex;
+  height: 42px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 0.5px solid var(--border-light);
+  position: relative;
+}
+.tl-block {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 500;
+  cursor: pointer;
+  overflow: hidden;
+  white-space: nowrap;
+  padding: 0 4px;
+  transition: opacity 0.12s;
+}
+.tl-block:hover { opacity: 0.82; }
+.now-line {
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 2px;
+  background: #E24B4A;
+  pointer-events: none;
+  z-index: 10;
+}
+.now-label {
+  position: absolute;
+  top: -15px;
+  font-size: 9px;
+  color: #E24B4A;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-weight: 500;
+}
+.coverage-bar-wrap { margin-bottom: 1.25rem; }
+.coverage-bar-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--text-tertiary);
+  margin-bottom: 3px;
+}
+.coverage-bar {
+  display: flex;
+  height: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+  border: 0.5px solid var(--border-light);
+}
+.alert-box {
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  margin-bottom: 1rem;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.alert-ok { background: #EAF3DE; border: 0.5px solid #C0DD97; color: #27500A; }
+.alert-err { background: #FCEBEB; border: 0.5px solid #F7C1C1; color: #A32D2D; }
+.alert-info { background: #E6F1FB; border: 0.5px solid #B5D4F4; color: #185FA5; }
+.gap-pill {
+  display: inline-block;
+  background: rgba(163,45,45,0.12);
+  color: #A32D2D;
+  border-radius: 4px;
+  padding: 1px 6px;
+  margin: 2px 3px 2px 0;
+  font-size: 11px;
+  font-weight: 500;
+}
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 1rem;
+}
+.summary-card { background: var(--bg-secondary); border-radius: var(--radius-md); padding: 10px 12px; }
+.summary-label { font-size: 11px; color: var(--text-tertiary); margin-bottom: 2px; }
+.summary-val { font-size: 22px; font-weight: 500; }
+.summary-sub { font-size: 11px; color: var(--text-secondary); }
+.status-bar {
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  margin-bottom: 1rem;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  border: 0.5px solid var(--border-light);
+  line-height: 1.6;
+}
+.block-list-item {
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  margin-bottom: 6px;
+  font-size: 13px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.badge-now {
+  background: #EAF3DE;
+  color: #27500A;
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: var(--radius-sm);
+  font-weight: 500;
+}
+.card {
+  background: var(--bg-primary);
+  border: 0.5px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  padding: 1rem 1.25rem;
+  margin-bottom: 1rem;
+}
+.card-title { font-size: 14px; font-weight: 500; margin-bottom: .75rem; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+.form-row.three { grid-template-columns: 1fr 1fr 1fr; }
+label { font-size: 12px; color: var(--text-secondary); display: block; margin-bottom: 3px; }
+select, input[type=time] {
+  width: 100%;
+  font-size: 13px;
+  padding: 7px 9px;
+  border: 0.5px solid var(--border-mid);
+  border-radius: var(--radius-md);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font);
+}
+.btn-row { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+.btn-primary {
+  padding: 8px 18px;
+  font-size: 13px;
+  border: 0.5px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  background: var(--text-primary);
+  color: var(--bg-primary);
+  font-family: var(--font);
+}
+.btn-secondary {
+  padding: 8px 18px;
+  font-size: 13px;
+  border: 0.5px solid var(--border-mid);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font);
+}
+.btn-danger {
+  padding: 8px 18px;
+  font-size: 13px;
+  border: 0.5px solid #A32D2D;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  background: #FCEBEB;
+  color: #A32D2D;
+  font-family: var(--font);
+}
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  z-index: 200;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: var(--bg-primary);
+  border-radius: var(--radius-lg);
+  border: 0.5px solid var(--border-light);
+  padding: 1.5rem;
+  width: 100%;
+  max-width: 440px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+.modal-title { font-size: 15px; font-weight: 500; margin-bottom: .75rem; }
+.modal-agent-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 0.5px solid var(--border-light);
+}
+.modal-agent-row:last-child { border-bottom: none; }
+.slot-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 5px;
+  margin-top: .5rem;
+}
+.slot-item {
+  border-radius: var(--radius-sm);
+  padding: 5px 8px;
+  font-size: 12px;
+}
+@media (max-width: 600px) {
+  .form-row.three { grid-template-columns: 1fr 1fr; }
+  .summary-grid { grid-template-columns: 1fr 1fr; }
+  body { padding: 0.75rem 0.5rem; }
+  .container { padding: 1rem; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="app-header">
+    <div>
+      <div class="app-title">Member Ops Schedule</div>
+      <div class="app-meta">Mending · Ebony (EST) · Marisa & Ky (CST)</div>
+    </div>
+    <div class="save-indicator">
+      <div class="save-dot" id="save-dot"></div>
+      <span id="save-text">Loading...</span>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('manager')">Manager view</button>
+    <button class="tab" onclick="switchTab('agent')">Agent view</button>
+    <button class="tab" onclick="switchTab('edit')">Edit schedule</button>
+    <button class="tab" onclick="switchTab('coverage')">Coverage check</button>
+  </div>
+
+  <!-- MANAGER VIEW -->
+  <div id="view-manager" class="view active">
+    <div class="day-select" id="mgr-days"></div>
+    <div id="mgr-alert"></div>
+    <div class="coverage-bar-wrap" id="mgr-cov-bar"></div>
+    <div class="legend" id="legend"></div>
+    <div id="mgr-timelines"></div>
+    <div class="summary-grid" id="mgr-summary"></div>
+  </div>
+
+  <!-- AGENT VIEW -->
+  <div id="view-agent" class="view">
+    <div class="agent-select" id="agent-selector"></div>
+    <div class="day-select" id="agent-days"></div>
+    <div id="agent-timeline" style="margin-bottom:10px"></div>
+    <div class="status-bar" id="agent-status"></div>
+    <div id="agent-blocks"></div>
+  </div>
+
+  <!-- EDIT VIEW -->
+  <div id="view-edit" class="view">
+    <div class="alert-box alert-info" style="margin-bottom:1rem">
+      <span>Click any block on the timeline to pre-fill the form below, or fill it out manually.</span>
+    </div>
+    <div class="card">
+      <div class="card-title">Edit a time block</div>
+      <div class="form-row three">
+        <div><label>Agent</label><select id="edit-agent"><option>Ebony</option><option>Marisa</option><option>Ky</option></select></div>
+        <div><label>Day</label><select id="edit-day" onchange="onEditDayChange()"></select></div>
+        <div><label>Activity</label><select id="edit-activity"></select></div>
+      </div>
+      <div class="form-row">
+        <div><label>New start time</label><input type="time" id="edit-start"></div>
+        <div><label>New end time</label><input type="time" id="edit-end"></div>
+      </div>
+      <div id="edit-fri-row" style="display:none;margin-bottom:10px">
+        <label>Friday week</label>
+        <select id="edit-fri-week">
+          <option value="1">AH Week 1</option>
+          <option value="2">AH Week 2</option>
+          <option value="3">AH Week 3</option>
+        </select>
+      </div>
+      <div class="btn-row">
+        <button class="btn-primary" onclick="applyEdit()">Apply change</button>
+        <button class="btn-secondary" onclick="resetSchedule()">Reset to original</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Add a new block</div>
+      <div class="form-row three">
+        <div><label>Agent</label><select id="add-agent"><option>Ebony</option><option>Marisa</option><option>Ky</option></select></div>
+        <div><label>Day</label><select id="add-day" onchange="onAddDayChange()"></select></div>
+        <div><label>Activity</label><select id="add-activity"></select></div>
+      </div>
+      <div class="form-row">
+        <div><label>Start time</label><input type="time" id="add-start"></div>
+        <div><label>End time</label><input type="time" id="add-end"></div>
+      </div>
+      <div id="add-fri-row" style="display:none;margin-bottom:10px">
+        <label>Friday week</label>
+        <select id="add-fri-week">
+          <option value="1">AH Week 1</option>
+          <option value="2">AH Week 2</option>
+          <option value="3">AH Week 3</option>
+        </select>
+      </div>
+      <div class="btn-row"><button class="btn-primary" onclick="addBlock()">Add block</button></div>
+    </div>
+  </div>
+
+  <!-- COVERAGE VIEW -->
+  <div id="view-coverage" class="view">
+    <div class="day-select" id="cov-days"></div>
+    <div id="cov-detail"></div>
+  </div>
+</div>
+
+<!-- REDISTRIBUTE MODAL -->
+<div class="modal-overlay" id="redist-modal">
+  <div class="modal">
+    <div class="modal-title" id="redist-title">Redistribute time?</div>
+    <p style="font-size:13px;color:var(--text-secondary);margin-bottom:1rem" id="redist-desc"></p>
+    <div id="redist-agents"></div>
+    <div class="btn-row" style="margin-top:1rem">
+      <button class="btn-primary" onclick="confirmRedist()">Apply redistribution</button>
+      <button class="btn-secondary" onclick="closeRedist()">Skip, just save</button>
+    </div>
+  </div>
+</div>
+
+<!-- COVERAGE WARNING MODAL -->
+<div class="modal-overlay" id="cov-modal">
+  <div class="modal">
+    <div class="modal-title" style="color:#A32D2D">Coverage gap detected</div>
+    <p style="font-size:13px;color:var(--text-secondary);margin-bottom:.75rem" id="cov-modal-desc"></p>
+    <div id="cov-modal-gaps" style="margin-bottom:1rem"></div>
+    <p style="font-size:12px;color:var(--text-tertiary);margin-bottom:1rem">
+      No agent will be on inbound phones during these windows. Save anyway or go back and adjust?
+    </p>
+    <div class="btn-row">
+      <button class="btn-danger" onclick="forceApply()">Save anyway</button>
+      <button class="btn-secondary" onclick="closeCovModal()">Go back and adjust</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Constants ────────────────────────────────────────────────
+const COLORS = {
+  'On Phones':   { bg: '#B5D4F4', text: '#0C447C' },
+  'Outbound':    { bg: '#9FE1CB', text: '#085041' },
+  'Ticket Time': { bg: '#CECBF6', text: '#3C3489' },
+  'Break 1':     { bg: '#D3D1C7', text: '#444441' },
+  'Break 2':     { bg: '#D3D1C7', text: '#444441' },
+  'Lunch':       { bg: '#FAC775', text: '#633806' },
+  'Weekly Sync': { bg: '#F4C0D1', text: '#72243E' },
+  'Project Time':{ bg: '#C0DD97', text: '#27500A' },
+  '1:1':         { bg: '#F5C4B3', text: '#712B13' },
+  'All Hands':   { bg: '#EF9F27', text: '#412402' },
+};
+const ACTIVITIES = Object.keys(COLORS);
+const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday'];
+const AGENTS = ['Ebony','Marisa','Ky'];
+const AGENT_TZ = { Ebony:'EST', Marisa:'CST', Ky:'CST' };
+const TO_EST = { EST:0, CST:1, PST:3 };
+const COV_START = 540, COV_END = 1080; // 9am–6pm in EST minutes
+const SK = 'mending-sched-v1', FK = 'mending-fri-v1';
+
+// ── Helpers ──────────────────────────────────────────────────
+function t2m(t) { const [h,m]=t.split(':').map(Number); return h*60+m; }
+function m2t(m) { m=((m%1440)+1440)%1440; return `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`; }
+function m2d(m) {
+  m=((m%1440)+1440)%1440;
+  const h=Math.floor(m/60),mn=m%60,ap=h>=12?'pm':'am',hh=h>12?h-12:(h===0?12:h);
+  return `${hh}${mn?':'+String(mn).padStart(2,'0'):''}${ap}`;
+}
+
+// ── Base schedules ───────────────────────────────────────────
+const BASE = {
+  Ebony: {
+    Monday:    [['On Phones','09:00','11:00'],['Break 1','11:00','11:15'],['On Phones','11:15','13:15'],['Break 2','13:15','13:30'],['Outbound','13:30','15:00'],['Lunch','15:00','15:30'],['On Phones','15:30','16:15'],['Ticket Time','16:15','17:00']],
+    Tuesday:   [['On Phones','09:00','11:00'],['Break 1','11:00','11:15'],['On Phones','11:15','12:15'],['Weekly Sync','12:15','12:45'],['On Phones','12:45','13:00'],['Break 2','13:00','13:15'],['Outbound','13:15','14:45'],['Lunch','14:45','15:15'],['Project Time','15:15','16:15'],['Ticket Time','16:15','17:00']],
+    Wednesday: [['On Phones','09:00','11:00'],['Break 1','11:00','11:15'],['On Phones','11:15','12:00'],['1:1','12:00','12:30'],['On Phones','12:30','13:15'],['Break 2','13:15','13:30'],['On Phones','13:30','14:00'],['Outbound','14:00','15:30'],['Lunch','15:30','16:00'],['On Phones','16:00','16:15'],['Ticket Time','16:15','17:00']],
+    Thursday:  [['On Phones','09:00','11:00'],['Break 1','11:00','11:15'],['On Phones','11:15','13:15'],['Break 2','13:15','13:30'],['On Phones','13:30','14:00'],['Outbound','14:00','15:30'],['Lunch','15:30','16:00'],['On Phones','16:00','16:15'],['Ticket Time','16:15','17:00']],
+  },
+  Marisa: {
+    Monday:    [['Ticket Time','08:30','09:15'],['On Phones','09:15','10:45'],['Break 1','10:45','11:00'],['On Phones','11:00','14:15'],['Lunch','14:15','14:45'],['Break 2','14:45','15:00'],['Outbound','15:00','16:30']],
+    Tuesday:   [['Ticket Time','08:30','09:15'],['On Phones','09:15','10:45'],['Break 1','10:45','11:00'],['On Phones','11:00','11:15'],['Weekly Sync','11:15','11:45'],['On Phones','11:45','12:30'],['1:1','12:30','13:00'],['On Phones','13:00','14:00'],['Break 2','14:00','14:15'],['Lunch','14:15','14:45'],['On Phones','14:45','15:00'],['Outbound','15:00','16:30']],
+    Wednesday: [['Ticket Time','08:30','09:15'],['On Phones','09:15','10:45'],['Break 1','10:45','11:00'],['On Phones','11:00','14:00'],['Break 2','14:00','14:15'],['Lunch','14:15','14:45'],['On Phones','14:45','15:00'],['Outbound','15:00','16:30']],
+    Thursday:  [['Ticket Time','08:30','09:15'],['On Phones','09:15','10:45'],['Break 1','10:45','11:00'],['Project Time','11:00','12:00'],['On Phones','12:00','14:00'],['Break 2','14:00','14:15'],['Lunch','14:15','14:45'],['On Phones','14:45','15:00'],['Outbound','15:00','16:30']],
+  },
+  Ky: {
+    Monday:    [['Ticket Time','09:00','09:45'],['Outbound','09:45','11:15'],['On Phones','11:15','11:30'],['Lunch','11:30','12:00'],['Break 1','12:00','12:15'],['On Phones','12:15','15:00'],['Break 2','15:00','15:15'],['On Phones','15:15','17:00']],
+    Tuesday:   [['Ticket Time','09:00','09:45'],['Outbound','09:45','11:15'],['Weekly Sync','11:15','11:45'],['Lunch','11:45','12:15'],['Break 1','12:15','12:30'],['On Phones','12:30','14:45'],['Break 2','14:45','15:00'],['On Phones','15:00','17:00']],
+    Wednesday: [['Ticket Time','09:00','09:45'],['Outbound','09:45','11:15'],['On Phones','11:15','11:30'],['Lunch','11:30','12:00'],['Break 1','12:00','12:15'],['Project Time','12:15','13:15'],['On Phones','13:15','15:00'],['Break 2','15:00','15:15'],['On Phones','15:15','17:00']],
+    Thursday:  [['Ticket Time','09:00','09:45'],['Outbound','09:45','11:15'],['On Phones','11:15','11:45'],['Lunch','11:45','12:15'],['Break 1','12:15','12:30'],['1:1','12:30','13:00'],['On Phones','13:00','15:00'],['Break 2','15:00','15:15'],['On Phones','15:15','17:00']],
+  }
+};
+
+const BASE_FRI = {
+  1: {
+    Ebony:  [['On Phones','09:00','11:00'],['Break 1','11:00','11:15'],['On Phones','11:15','13:15'],['Break 2','13:15','13:30'],['Lunch','13:30','14:00'],['On Phones','14:00','15:00'],['All Hands','15:00','15:45'],['On Phones','15:45','16:00'],['Ticket Time','16:00','17:00']],
+    Marisa: [['Ticket Time','08:30','09:00'],['On Phones','09:00','10:15'],['Break 1','10:15','10:30'],['On Phones','10:30','13:15'],['Break 2','13:15','13:30'],['On Phones','13:30','14:45'],['Lunch','14:45','15:15'],['On Phones','15:15','16:00'],['Ticket Time','16:00','16:30']],
+    Ky:     [['Ticket Time','09:00','10:00'],['On Phones','10:00','11:30'],['Lunch','11:30','12:00'],['Break 1','12:00','12:15'],['On Phones','12:15','15:15'],['Break 2','15:15','15:30'],['On Phones','15:30','17:00']],
+  },
+  2: {
+    Ebony:  [['On Phones','09:00','11:00'],['Break 1','11:00','11:15'],['On Phones','11:15','13:15'],['Break 2','13:15','13:30'],['Lunch','13:30','14:00'],['On Phones','14:00','16:00'],['Ticket Time','16:00','17:00']],
+    Marisa: [['Ticket Time','08:30','09:00'],['On Phones','09:00','10:15'],['Break 1','10:15','10:30'],['On Phones','10:30','13:15'],['Break 2','13:15','13:30'],['On Phones','13:30','14:00'],['All Hands','14:00','14:45'],['Lunch','14:45','15:15'],['On Phones','15:15','16:00'],['Ticket Time','16:00','16:30']],
+    Ky:     [['Ticket Time','09:00','10:00'],['On Phones','10:00','11:30'],['Lunch','11:30','12:00'],['Break 1','12:00','12:15'],['On Phones','12:15','15:15'],['Break 2','15:15','15:30'],['On Phones','15:30','17:00']],
+  },
+  3: {
+    Ebony:  [['On Phones','09:00','11:00'],['Break 1','11:00','11:15'],['On Phones','11:15','13:15'],['Break 2','13:15','13:30'],['Lunch','13:30','14:00'],['On Phones','14:00','16:00'],['Ticket Time','16:00','17:00']],
+    Marisa: [['Ticket Time','08:30','09:00'],['On Phones','09:00','10:15'],['Break 1','10:15','10:30'],['On Phones','10:30','13:15'],['Break 2','13:15','13:30'],['On Phones','13:30','14:45'],['Lunch','14:45','15:15'],['On Phones','15:15','16:00'],['Ticket Time','16:00','16:30']],
+    Ky:     [['Ticket Time','09:00','10:00'],['On Phones','10:00','11:30'],['Lunch','11:30','12:00'],['Break 1','12:00','12:15'],['On Phones','12:15','14:00'],['All Hands','14:00','14:45'],['On Phones','14:45','15:15'],['Break 2','15:15','15:30'],['On Phones','15:30','17:00']],
+  }
+};
+
+// ── Rotation ─────────────────────────────────────────────────
+const ROTATION = [3,1,2];
+const ANCHOR_FRI = new Date('2026-04-18');
+function getFriWeek(d) {
+  const diff = Math.round((d - ANCHOR_FRI) / (7*24*3600*1000));
+  return ROTATION[((diff % 3) + 3) % 3];
+}
+const today = new Date();
+const dToFri = (5 - today.getDay() + 7) % 7 || 7;
+const thisFri = new Date(today);
+thisFri.setDate(today.getDate() + (today.getDay() === 5 ? 0 : dToFri));
+const THIS_FRI_WEEK = getFriWeek(thisFri);
+
+// ── State ────────────────────────────────────────────────────
+let schedule = JSON.parse(JSON.stringify(BASE));
+let friSchedule = JSON.parse(JSON.stringify(BASE_FRI));
+let pendingRedist = null, pendingForce = null;
+let mgrDay = 'Monday', mgrFriWeek = THIS_FRI_WEEK;
+let agentView = 'Ebony', agentDay = 'Monday', agentFriWeek = THIS_FRI_WEEK;
+let covDay = 'Monday', covFriWeek = THIS_FRI_WEEK;
+
+// ── localStorage persistence ──────────────────────────────────
+function save() {
+  setSaveStatus('saving');
+  try {
+    localStorage.setItem(SK, JSON.stringify(schedule));
+    localStorage.setItem(FK, JSON.stringify(friSchedule));
+    setSaveStatus('saved');
+  } catch(e) {
+    setSaveStatus('error');
+  }
+}
+
+function load() {
+  try {
+    const s = localStorage.getItem(SK);
+    const f = localStorage.getItem(FK);
+    if (s) schedule = JSON.parse(s);
+    if (f) friSchedule = JSON.parse(f);
+    setSaveStatus('saved');
+  } catch(e) {
+    setSaveStatus('saved');
+  }
+  renderAll();
+}
+
+function setSaveStatus(state) {
+  const dot = document.getElementById('save-dot');
+  const txt = document.getElementById('save-text');
+  const map = {
+    loading: ['#BA7517','Loading...'],
+    saving:  ['#BA7517','Saving...'],
+    saved:   ['#639922','All changes saved'],
+    error:   ['#A32D2D','Save failed'],
+  };
+  const [color, label] = map[state] || map.saved;
+  if (dot) dot.style.background = color;
+  if (txt) txt.textContent = label;
+}
+
+// ── Coverage engine ───────────────────────────────────────────
+function getCoverage(day, friWeek, testS, testF) {
+  const slots = new Array(36).fill(0);
+  AGENTS.forEach(agent => {
+    const estOff = TO_EST[AGENT_TZ[agent]];
+    const blocks = day === 'Friday'
+      ? (testF || friSchedule)[friWeek][agent] || []
+      : (testS || schedule)[agent][day] || [];
+    blocks.forEach(b => {
+      if (b[0] !== 'On Phones') return;
+      const sE = t2m(b[1]) + estOff * 60;
+      const eE = t2m(b[2]) + estOff * 60;
+      for (let i = 0; i < 36; i++) {
+        const sS = COV_START + i * 15, sEnd = sS + 15;
+        if (sE < sEnd && eE > sS) slots[i]++;
+      }
+    });
+  });
+  const gaps = [];
+  let gs = null;
+  for (let i = 0; i < 36; i++) {
+    if (slots[i] === 0) { if (gs === null) gs = COV_START + i * 15; }
+    else { if (gs !== null) { gaps.push({start:gs, end:COV_START+i*15}); gs=null; } }
+  }
+  if (gs !== null) gaps.push({start:gs, end:COV_END});
+  return { slots, gaps };
+}
+
+function fmtGaps(gaps) { return gaps.map(g => `${m2d(g.start)}–${m2d(g.end)} EST`); }
+
+function renderCovBar(day, friWeek, barId, alertId) {
+  const { slots, gaps } = getCoverage(day, friWeek);
+  if (alertId) {
+    const el = document.getElementById(alertId);
+    if (!el) return;
+    if (gaps.length === 0) {
+      el.innerHTML = `<div class="alert-box alert-ok"><span>✓</span><div>Full inbound coverage 9am–6pm EST</div></div>`;
+    } else {
+      el.innerHTML = `<div class="alert-box alert-err"><span>!</span><div><strong>${gaps.length} coverage gap${gaps.length>1?'s':''}</strong><div style="margin-top:4px">${fmtGaps(gaps).map(g=>`<span class="gap-pill">${g}</span>`).join('')}</div></div></div>`;
+    }
+  }
+  if (barId) {
+    const segs = slots.map((c,i) => {
+      const bg = c===0?'#FCEBEB':c===1?'#EAF3DE':'#B5D4F4';
+      return `<div style="width:${100/36}%;background:${bg};height:100%" title="${m2d(COV_START+i*15)} EST — ${c} agent${c!==1?'s':''}"></div>`;
+    }).join('');
+    document.getElementById(barId).innerHTML = `
+      <div class="coverage-bar-meta"><span>Inbound coverage 9am–6pm EST</span><span>Red = gap · Green = 1 agent · Blue = 2+</span></div>
+      <div class="coverage-bar">${segs}</div>`;
+  }
+}
+
+// ── Render ────────────────────────────────────────────────────
+function buildLegend() {
+  document.getElementById('legend').innerHTML = Object.entries(COLORS).map(([k,v])=>
+    `<div class="legend-item"><div class="legend-dot" style="background:${v.bg}"></div><span>${k}</span></div>`
+  ).join('');
+}
+
+function buildDayBtns(id, activeDay, activeFW, dayFn, friFn) {
+  let html = DAYS.map(d =>
+    `<button class="day-btn ${d===activeDay?'active':''}" onclick="${dayFn}('${d}')">${d.slice(0,3)}</button>`
+  ).join('');
+  if (activeDay === 'Friday') {
+    html += `<span class="fri-label">Week:</span><div class="fri-toggle">`;
+    html += [1,2,3].map(w =>
+      `<button class="fri-btn ${w===activeFW?'active':''}" onclick="${friFn}(${w})">AH${w}</button>`
+    ).join('');
+    html += `</div>`;
+  }
+  document.getElementById(id).innerHTML = html;
+}
+
+function getBlocks(agent, day, fw, s, f) {
+  return day === 'Friday'
+    ? (f || friSchedule)[fw][agent] || []
+    : (s || schedule)[agent][day] || [];
+}
+
+function nowMinsFor(tz) {
+  const tzOff = {EST:-5, CST:-6, PST:-8}[tz] || 0;
+  const nowUTC = Date.now() + (new Date().getTimezoneOffset() * 60000);
+  const d = new Date(nowUTC + tzOff * 3600000);
+  return d.getHours() * 60 + d.getMinutes();
+}
+
+function renderTimeline(agent, day, fw, containerId, showNow) {
+  const blocks = getBlocks(agent, day, fw);
+  const tz = AGENT_TZ[agent];
+  const el = document.getElementById(containerId);
+  if (!blocks.length) { el.innerHTML = '<p style="font-size:12px;color:var(--text-tertiary)">No blocks</p>'; return; }
+  const dayStart = Math.min(...blocks.map(b => t2m(b[1])));
+  const dayEnd   = Math.max(...blocks.map(b => t2m(b[2])));
+  const total = dayEnd - dayStart;
+  const nowM = nowMinsFor(tz);
+  const inDay = nowM >= dayStart && nowM <= dayEnd;
+  let html = `<div class="tl-header"><span>${m2d(dayStart)} <span style="font-size:9px;opacity:0.6">${tz}</span></span><span>${m2d(dayEnd)} <span style="font-size:9px;opacity:0.6">${tz}</span></span></div>`;
+  html += `<div class="tl-bar">`;
+  blocks.forEach(b => {
+    const s = t2m(b[1]), e = t2m(b[2]), w = ((e-s)/total*100).toFixed(2);
+    const c = COLORS[b[0]] || {bg:'#D3D1C7', text:'#444441'};
+    const lbl = parseFloat(w) > 7 ? b[0] : '';
+    html += `<div class="tl-block" style="width:${w}%;background:${c.bg};color:${c.text}" title="${b[0]}: ${m2d(s)}–${m2d(e)} ${tz}" onclick="clickBlock('${agent}','${day}',${s},${e},'${b[0]}',${fw})"><span style="font-size:10px;pointer-events:none">${lbl}</span></div>`;
+  });
+  if (showNow && inDay) {
+    const pct = ((nowM-dayStart)/total*100).toFixed(2);
+    html += `<div class="now-line" style="left:${pct}%"><span class="now-label">now</span></div>`;
+  }
+  html += `</div>`;
+  el.innerHTML = html;
+}
+
+function renderManager() {
+  buildDayBtns('mgr-days', mgrDay, mgrFriWeek, 'setMgrDay', 'setMgrFriWeek');
+  renderCovBar(mgrDay, mgrFriWeek, 'mgr-cov-bar', 'mgr-alert');
+  const wrap = document.getElementById('mgr-timelines');
+  wrap.innerHTML = '';
+  AGENTS.forEach(a => {
+    const div = document.createElement('div');
+    div.className = 'agent-row';
+    div.innerHTML = `<div class="agent-name">${a} <span class="tz-badge">${AGENT_TZ[a]}</span></div><div id="tl-mgr-${a}"></div>`;
+    wrap.appendChild(div);
+    renderTimeline(a, mgrDay, mgrFriWeek, `tl-mgr-${a}`, true);
+  });
+  let phones=0, outbound=0, total=0;
+  AGENTS.forEach(a => {
+    getBlocks(a, mgrDay, mgrFriWeek).forEach(b => {
+      const d = t2m(b[2]) - t2m(b[1]);
+      if (b[0]==='On Phones') phones+=d;
+      if (b[0]==='Outbound') outbound+=d;
+      total+=d;
+    });
+  });
+  document.getElementById('mgr-summary').innerHTML = `
+    <div class="summary-card"><div class="summary-label">Inbound coverage</div><div class="summary-val">${(phones/60).toFixed(1)}h</div><div class="summary-sub">across all agents</div></div>
+    <div class="summary-card"><div class="summary-label">Outbound coverage</div><div class="summary-val">${(outbound/60).toFixed(1)}h</div><div class="summary-sub">across all agents</div></div>
+    <div class="summary-card"><div class="summary-label">Avg per agent</div><div class="summary-val">${(total/3/60).toFixed(1)}h</div><div class="summary-sub">scheduled today</div></div>`;
+}
+function setMgrDay(d) { mgrDay=d; renderManager(); }
+function setMgrFriWeek(w) { mgrFriWeek=w; renderManager(); }
+
+function renderAgent() {
+  document.getElementById('agent-selector').innerHTML = AGENTS.map(a =>
+    `<button class="agent-btn ${a===agentView?'active':''}" onclick="setAgentView('${a}')">${a}</button>`
+  ).join('');
+  buildDayBtns('agent-days', agentDay, agentFriWeek, 'setAgentDay', 'setAgentFriWeek');
+  renderTimeline(agentView, agentDay, agentFriWeek, 'agent-timeline', true);
+  const tz = AGENT_TZ[agentView];
+  const blocks = getBlocks(agentView, agentDay, agentFriWeek);
+  const nowM = nowMinsFor(tz);
+  let current=null, next=null;
+  blocks.forEach(b => {
+    const s=t2m(b[1]),e=t2m(b[2]);
+    if (nowM>=s&&nowM<e) current=b;
+    if (!next&&s>nowM) next=b;
+  });
+  const sEl = document.getElementById('agent-status');
+  if (current) {
+    const c = COLORS[current[0]] || {bg:'#D3D1C7',text:'#444441'};
+    sEl.innerHTML = `<span style="font-size:11px;color:var(--text-tertiary)">Right now (${tz})</span><br><strong style="font-size:15px;color:${c.text}">${current[0]}</strong> until ${m2d(t2m(current[2]))}${next?` &nbsp;·&nbsp; Next: <strong>${next[0]}</strong> at ${m2d(t2m(next[1]))}`:''}`;
+  } else {
+    sEl.innerHTML = `<span style="color:var(--text-tertiary)">Shift not currently active (${tz})</span>${next?` — next: <strong>${next[0]}</strong> at ${m2d(t2m(next[1]))}`:''}`;
+  }
+  document.getElementById('agent-blocks').innerHTML = blocks.map(b => {
+    const s=t2m(b[1]),e=t2m(b[2]),dur=e-s,isNow=nowM>=s&&nowM<e;
+    const c = COLORS[b[0]] || {bg:'#D3D1C7',text:'#444441'};
+    return `<div class="block-list-item" style="${isNow?`border-left:3px solid ${c.bg};`:''}">
+      <div><strong>${b[0]}</strong><span style="font-size:12px;color:var(--text-secondary);margin-left:8px">${m2d(s)} – ${m2d(e)} ${tz} (${dur}m)</span></div>
+      ${isNow?`<span class="badge-now">Now</span>`:''}
+    </div>`;
+  }).join('');
+}
+function setAgentView(a) { agentView=a; renderAgent(); }
+function setAgentDay(d) { agentDay=d; renderAgent(); }
+function setAgentFriWeek(w) { agentFriWeek=w; renderAgent(); }
+
+function renderCovTab() {
+  buildDayBtns('cov-days', covDay, covFriWeek, 'setCovDay', 'setCovFriWeek');
+  const { slots, gaps } = getCoverage(covDay, covFriWeek);
+  let html = gaps.length===0
+    ? `<div class="alert-box alert-ok"><span>✓</span><div><strong>Full coverage confirmed</strong> — at least 1 agent on phones every 15-min slot, 9am–6pm EST.</div></div>`
+    : `<div class="alert-box alert-err"><span>!</span><div><strong>${gaps.length} gap${gaps.length>1?'s':''} detected</strong><div style="margin-top:4px">${fmtGaps(gaps).map(g=>`<span class="gap-pill">${g}</span>`).join('')}</div></div></div>`;
+  html += `<div class="card"><div class="card-title">15-min slot breakdown — 9am to 6pm EST</div><div class="slot-grid">`;
+  slots.forEach((c,i) => {
+    const sS = COV_START+i*15;
+    const bg = c===0?'#FCEBEB':c===1?'#EAF3DE':'#B5D4F4';
+    const tx = c===0?'#A32D2D':c===1?'#27500A':'#0C447C';
+    html += `<div class="slot-item" style="background:${bg};color:${tx}"><span style="font-weight:500">${m2d(sS)}</span> <span style="opacity:0.75">${c} agent${c!==1?'s':''}</span></div>`;
+  });
+  html += `</div></div>`;
+  document.getElementById('cov-detail').innerHTML = html;
+}
+function setCovDay(d) { covDay=d; renderCovTab(); }
+function setCovFriWeek(w) { covFriWeek=w; renderCovTab(); }
+
+// ── Edit logic ────────────────────────────────────────────────
+function clickBlock(agent, day, s, e, activity, fw) {
+  document.getElementById('edit-agent').value = agent;
+  document.getElementById('edit-day').value = day;
+  document.getElementById('edit-activity').value = activity;
+  document.getElementById('edit-start').value = m2t(s);
+  document.getElementById('edit-end').value = m2t(e);
+  document.getElementById('edit-fri-week').value = fw;
+  document.getElementById('edit-fri-row').style.display = day==='Friday' ? 'block' : 'none';
+  switchTab('edit');
+}
+function onEditDayChange() {
+  document.getElementById('edit-fri-row').style.display = document.getElementById('edit-day').value==='Friday' ? 'block' : 'none';
+}
+function onAddDayChange() {
+  document.getElementById('add-fri-row').style.display = document.getElementById('add-day').value==='Friday' ? 'block' : 'none';
+}
+
+function applyEdit() {
+  const agent = document.getElementById('edit-agent').value;
+  const day   = document.getElementById('edit-day').value;
+  const act   = document.getElementById('edit-activity').value;
+  const ns    = document.getElementById('edit-start').value;
+  const ne    = document.getElementById('edit-end').value;
+  if (!ns||!ne) { alert('Please fill in start and end times.'); return; }
+  const fw = parseInt(document.getElementById('edit-fri-week').value);
+  const testS = JSON.parse(JSON.stringify(schedule));
+  const testF = JSON.parse(JSON.stringify(friSchedule));
+  const blocks = day==='Friday' ? testF[fw][agent] : testS[agent][day];
+  const idx = blocks.findIndex(b => b[0]===act);
+  if (idx===-1) { alert('Block not found. Try adding it instead.'); return; }
+  const oldDur = t2m(blocks[idx][2]) - t2m(blocks[idx][1]);
+  blocks[idx] = [act, ns, ne];
+  const delta = (t2m(ne)-t2m(ns)) - oldDur;
+  const { gaps } = getCoverage(day, fw, testS, testF);
+  if (gaps.length > 0) {
+    document.getElementById('cov-modal-desc').textContent = `Changing ${agent}'s ${act} on ${day}${day==='Friday'?' (AH Week '+fw+')':''} would create inbound coverage gaps:`;
+    document.getElementById('cov-modal-gaps').innerHTML = fmtGaps(gaps).map(g=>`<span class="gap-pill">${g}</span>`).join('');
+    pendingForce = { agent, day, act, ns, ne, fw, delta };
+    document.getElementById('cov-modal').classList.add('open');
+  } else {
+    commitEdit(agent, day, act, ns, ne, fw, delta);
+  }
+}
+
+function forceApply() {
+  if (!pendingForce) return;
+  const { agent, day, act, ns, ne, fw, delta } = pendingForce;
+  closeCovModal();
+  commitEdit(agent, day, act, ns, ne, fw, delta);
+}
+
+function commitEdit(agent, day, act, ns, ne, fw, delta) {
+  const blocks = day==='Friday' ? friSchedule[fw][agent] : schedule[agent][day];
+  const idx = blocks.findIndex(b => b[0]===act);
+  if (idx > -1) blocks[idx] = [act, ns, ne];
+  if (delta !== 0) {
+    showRedistModal(agent, day, act, delta, fw);
+  } else {
+    save(); renderAll();
+  }
+}
+
+function addBlock() {
+  const agent = document.getElementById('add-agent').value;
+  const day   = document.getElementById('add-day').value;
+  const act   = document.getElementById('add-activity').value;
+  const s     = document.getElementById('add-start').value;
+  const e     = document.getElementById('add-end').value;
+  if (!s||!e) { alert('Please fill in start and end times.'); return; }
+  const fw = parseInt(document.getElementById('add-fri-week').value);
+  const blocks = day==='Friday' ? friSchedule[fw][agent] : schedule[agent][day];
+  blocks.push([act, s, e]);
+  blocks.sort((a,b) => t2m(a[1])-t2m(b[1]));
+  save(); renderAll();
+}
+
+function showRedistModal(changedAgent, day, act, delta, fw) {
+  const others = AGENTS.filter(a => a!==changedAgent);
+  document.getElementById('redist-title').textContent = 'Redistribute time to other agents?';
+  document.getElementById('redist-desc').textContent = `You changed ${changedAgent}'s ${act} by ${delta>0?'+':''}${delta} min on ${day}${day==='Friday'?' (AH Week '+fw+')':''}. Apply same change to others?`;
+  document.getElementById('redist-agents').innerHTML = others.map(a => {
+    const blks = day==='Friday' ? friSchedule[fw][a] : schedule[a][day];
+    const has = blks.some(b => b[0]===act);
+    return `<div class="modal-agent-row">
+      <div>
+        <div style="font-size:13px;font-weight:500">${a} <span style="font-size:11px;font-weight:400;color:var(--text-tertiary)">${AGENT_TZ[a]}</span></div>
+        <div style="font-size:12px;color:var(--text-secondary)">${has?`Has ${act} — adjust by ${delta>0?'+':''}${delta}m`:`No ${act} on this day`}</div>
+      </div>
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+        <input type="checkbox" id="rd-${a}" ${has?'checked':''} ${has?'':'disabled'}> Apply
+      </label>
+    </div>`;
+  }).join('');
+  pendingRedist = { changedAgent, day, act, delta, others, fw };
+  document.getElementById('redist-modal').classList.add('open');
+}
+
+function confirmRedist() {
+  if (!pendingRedist) return;
+  const { day, act, delta, others, fw } = pendingRedist;
+  others.forEach(a => {
+    const cb = document.getElementById(`rd-${a}`);
+    if (cb && cb.checked) {
+      const blks = day==='Friday' ? friSchedule[fw][a] : schedule[a][day];
+      const idx = blks.findIndex(b => b[0]===act);
+      if (idx > -1) blks[idx][2] = m2t(t2m(blks[idx][2]) + delta);
+    }
+  });
+  closeRedist(); save(); renderAll();
+}
+function closeRedist() { document.getElementById('redist-modal').classList.remove('open'); pendingRedist=null; }
+function closeCovModal() { document.getElementById('cov-modal').classList.remove('open'); pendingForce=null; }
+
+function resetSchedule() {
+  if (!confirm('Reset all schedules to the original? This cannot be undone.')) return;
+  schedule = JSON.parse(JSON.stringify(BASE));
+  friSchedule = JSON.parse(JSON.stringify(BASE_FRI));
+  save(); renderAll();
+}
+
+function renderAll() { renderManager(); renderAgent(); if(document.getElementById('view-coverage').classList.contains('active')) renderCovTab(); }
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelector(`.tab[onclick="switchTab('${tab}')"]`).classList.add('active');
+  document.getElementById(`view-${tab}`).classList.add('active');
+  if (tab==='coverage') renderCovTab();
+}
+
+// ── Init ──────────────────────────────────────────────────────
+function populateSelects() {
+  ['edit-activity','add-activity'].forEach(id => {
+    document.getElementById(id).innerHTML = ACTIVITIES.map(a=>`<option>${a}</option>`).join('');
+  });
+  ['edit-day','add-day'].forEach(id => {
+    document.getElementById(id).innerHTML = DAYS.map(d=>`<option>${d}</option>`).join('');
+  });
+}
+
+setSaveStatus('loading');
+populateSelects();
+buildLegend();
+load();
+setInterval(() => { renderManager(); renderAgent(); }, 60000);
+</script>
+</body>
+</html>
