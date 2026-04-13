@@ -565,7 +565,7 @@ function renderAgent(){
     const bS=Math.min(...blocks.map(b=>t2m(b[1]))),bE=Math.max(...blocks.map(b=>t2m(b[2]))),tot=bE-bS;
     const nowM=nowFor(tz),inDay=nowM>=bS&&nowM<=bE;
     let h=`<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-tertiary);margin-bottom:2px"><span>${m2d(bS)} <span style="opacity:0.6">${tz}</span></span><span>${m2d(bE)} <span style="opacity:0.6">${tz}</span></span></div><div class="tl-bar" style="height:42px">`;
-    blocks.forEach(b=>{const s=t2m(b[1]),e=t2m(b[2]),w=((e-s)/tot*100).toFixed(2),c=COLORS[b[0]]||{bg:'#D3D1C7',text:'#444441'},lbl=parseFloat(w)>7?b[0]:'';h+=`<div class="tl-block" style="width:${w}%;background:${c.bg};color:${c.text};font-size:10px" title="${b[0]}: ${m2d(s)}–${m2d(e)} ${tz}" onclick="clickBlock('${aView}','${aDay}',${s},${e},'${b[0]}',${aFW})"><span style="pointer-events:none">${lbl}</span></div>`;});
+    blocks.forEach(b=>{const s=t2m(b[1]),e=t2m(b[2]),w=((e-s)/tot*100).toFixed(2),c=COLORS[b[0]]||{bg:'#D3D1C7',text:'#444441'},lbl=getLabel(b[0],parseFloat(w));h+=`<div class="tl-block" style="width:${w}%;background:${c.bg};color:${c.text};font-size:10px" title="${b[0]}: ${m2d(s)}–${m2d(e)} ${tz}" onclick="clickBlock('${aView}','${aDay}',${s},${e},'${b[0]}',${aFW})"><span style="pointer-events:none;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;max-width:100%;display:block;text-align:center">${lbl}</span></div>`;});
     if(inDay){const pct=((nowM-bS)/tot*100).toFixed(2);h+=`<div class="now-line" style="left:${pct}%"><span class="now-lbl">now</span></div>`;}
     tWrap.innerHTML=h+`</div>`;
   }
