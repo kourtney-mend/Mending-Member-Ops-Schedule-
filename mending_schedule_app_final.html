@@ -231,7 +231,7 @@ tf.setDate(td.getDate()+(td.getDay()===5?0:dtf));
 
 let sched=JSON.parse(JSON.stringify(BASE)),fsched=JSON.parse(JSON.stringify(BF));
 let noOB={Monday:false,Tuesday:false,Wednesday:false,Thursday:false};
-let pRed=null,pForce=null;
+let pRed=null,pendingForce=null;
 let mDay='Monday',mFW=gfw(tf),aView='Ebony',aDay='Monday',aFW=gfw(tf),cDay='Monday',cFW=gfw(tf);
 
 function save(){
@@ -326,37 +326,216 @@ function renderCovBar(day,fw,barId,alertId){
   if(barId){const segs=slots.map((c,i)=>{const bg=c===0?'#FCEBEB':c===1?'#EAF3DE':'#B5D4F4';return`<div style="width:${100/36}%;background:${bg};height:100%" title="${m2d(COV_S+i*15)} EST — ${c} agent${c!==1?'s':''}"></div>`;}).join('');document.getElementById(barId).innerHTML=`<div class="cov-bar-meta"><span>Inbound coverage 9am–6pm EST</span><span>Red=gap · Green=1 agent · Blue=2+</span></div><div class="cov-bar">${segs}</div>`;}
 }
 
-function buildLegend(){document.getElementById('legend').innerHTML=Object.entries(COLORS).map(([k,v])=>`<div class="legend-item"><div class="legend-dot" style="background:${v.bg}"></div><span>${k}</span></div>`).join('');}
+function buildLegend(){document.getElementById('legend').innerHTML=Object.entries(COLORS).map(([k,v])=>{const short=SHORT_LABELS[k]||'';return`<div class="legend-item"><div class="legend-dot" style="background:${v.bg}"></div><span>${k}${short&&short!==k?` <span style="opacity:0.55;font-size:10px">(${short})</span>`:''}</span></div>`;}).join('');}
 function buildDayBtns(id,ad,afw,df,ff){
   let h=DAYS.map(d=>`<button class="day-btn ${d===ad?'active':''}" onclick="${df}('${d}')">${d.slice(0,3)}</button>`).join('');
   if(ad==='Friday'){h+=`<span class="fri-label">Week:</span><div class="fri-toggle">${[1,2,3].map(w=>`<button class="fri-btn ${w===afw?'active':''}" onclick="${ff}(${w})">AH${w}</button>`).join('')}</div>`;}
   document.getElementById(id).innerHTML=h;
 }
 
-function buildBar(blocks,h,clickable,agent,day,fw){
+// ── Short labels for narrow blocks ───────────────────────────
+const SHORT_LABELS={
+  'On Phones':'📞','Outbound':'📤','Ticket Time':'🎫',
+  'Break 1':'B1','Break 2':'B2','Lunch':'🍽',
+  'Weekly Sync':'Sync','Project Time':'Proj','1:1':'1:1','All Hands':'AH'
+};
+
+// ── Drag state ───────────────────────────────────────────────
+let drag={active:false,agent:null,day:null,fw:null,blockIdx:null,mode:null,startX:0,barW:0,dayStart:0,dayEnd:0,origBlocks:null};
+
+function getLabel(name,widthPct){
+  if(widthPct>12) return name;           // full label
+  if(widthPct>5)  return SHORT_LABELS[name]||name.slice(0,3); // short
+  if(widthPct>2)  return (SHORT_LABELS[name]||'').slice(0,2); // tiny
+  return '';
+}
+
+function buildDragBar(blocks,agent,day,fw){
   if(!blocks.length)return'';
+  const tz=ATZ[agent];
   const bS=Math.min(...blocks.map(b=>t2m(b[1]))),bE=Math.max(...blocks.map(b=>t2m(b[2]))),tot=bE-bS;
-  const tz=ATZ[agent],nowM=h>25?nowFor(tz):nowFor('PST'),inDay=nowM>=bS&&nowM<=bE;
+  const nowM=nowFor(tz),inDay=nowM>=bS&&nowM<=bE;
   let html=`<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-tertiary);margin-bottom:2px"><span>${m2d(bS)}</span><span>${m2d(bE)}</span></div>`;
-  html+=`<div class="tl-bar" style="height:${h}px">`;
-  blocks.forEach(b=>{
+  html+=`<div class="tl-bar drag-bar" id="dragbar-${agent}" style="height:44px;cursor:default">`;
+  blocks.forEach((b,i)=>{
     const s=t2m(b[1]),e=t2m(b[2]),w=((e-s)/tot*100).toFixed(2);
     const c=COLORS[b[0]]||{bg:'#D3D1C7',text:'#444441'};
-    const lbl=h>25&&parseFloat(w)>7?b[0]:'';
-    html+=`<div class="tl-block" style="width:${w}%;background:${c.bg};color:${c.text};font-size:${h>25?10:9}px" title="${b[0]}: ${m2d(s)}–${m2d(e)}" ${clickable?`onclick="clickBlock('${agent}','${day}',${s},${e},'${b[0]}',${fw})"`:''}>
-      <span style="pointer-events:none;overflow:hidden">${lbl}</span></div>`;
+    const lbl=getLabel(b[0],parseFloat(w));
+    html+=`<div class="tl-block drag-block" data-agent="${agent}" data-day="${day}" data-fw="${fw}" data-idx="${i}"
+      style="width:${w}%;background:${c.bg};color:${c.text};font-size:10px;position:relative;cursor:grab;user-select:none"
+      title="${b[0]}: ${m2d(s)}–${m2d(e)} ${tz}">
+      <span style="pointer-events:none;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;max-width:100%;display:block;text-align:center">${lbl}</span>
+      <div class="drag-handle-right" data-agent="${agent}" data-day="${day}" data-fw="${fw}" data-idx="${i}"
+        style="position:absolute;right:0;top:0;bottom:0;width:8px;cursor:ew-resize;background:rgba(0,0,0,0.15);border-radius:0 4px 4px 0"></div>
+    </div>`;
   });
-  if(inDay){const pct=((nowM-bS)/tot*100).toFixed(2);html+=`<div class="now-line" style="left:${pct}%">${h>25?'<span class="now-lbl">now</span>':''}</div>`;}
-  html+=`</div>`;return html;
+  if(inDay){const pct=((nowM-bS)/tot*100).toFixed(2);html+=`<div class="now-line" style="left:${pct}%"><span class="now-lbl">now</span></div>`;}
+  html+=`</div>`;
+  return html;
+}
+
+function buildPSTBar(blocks,agent,tz){
+  if(!blocks.length)return'';
+  const pst=toPST(blocks,tz);
+  const bS=Math.min(...pst.map(b=>t2m(b[1]))),bE=Math.max(...pst.map(b=>t2m(b[2]))),tot=bE-bS;
+  const nowM=nowFor('PST'),inDay=nowM>=bS&&nowM<=bE;
+  let html=`<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-tertiary);margin-bottom:2px"><span>${m2d(bS)}</span><span>${m2d(bE)}</span></div>`;
+  html+=`<div class="tl-bar" style="height:22px;opacity:0.6">`;
+  pst.forEach(b=>{
+    const s=t2m(b[1]),e=t2m(b[2]),w=((e-s)/tot*100).toFixed(2);
+    const c=COLORS[b[0]]||{bg:'#D3D1C7',text:'#444441'};
+    html+=`<div style="width:${w}%;background:${c.bg};display:flex;align-items:center;justify-content:center;font-size:9px;color:${c.text};overflow:hidden;white-space:nowrap;padding:0 2px"></div>`;
+  });
+  if(inDay){const pct=((nowM-bS)/tot*100).toFixed(2);html+=`<div class="now-line" style="left:${pct}%"></div>`;}
+  html+=`</div>`;
+  return html;
 }
 
 function renderDualTL(agent,day,fw,container){
-  const tz=ATZ[agent],blocks=gBlocks(agent,day,fw),pst=toPST(blocks,tz);
+  const tz=ATZ[agent],blocks=gBlocks(agent,day,fw);
   if(!blocks.length){container.innerHTML='<p style="font-size:12px;color:var(--text-tertiary)">No blocks</p>';return;}
   container.innerHTML=`<div class="dual-wrap">
-    <div class="tl-row"><div class="tl-tz" style="color:#185FA5">${tz}</div><div class="tl-outer">${buildBar(blocks,40,true,agent,day,fw)}</div></div>
-    <div class="tl-row"><div class="tl-tz" style="color:var(--text-tertiary)">PST</div><div class="tl-outer" style="opacity:0.6">${buildBar(pst,22,false,agent,day,fw)}</div></div>
+    <div class="tl-row"><div class="tl-tz" style="color:#185FA5">${tz}</div><div class="tl-outer" id="dragbar-wrap-${agent}">${buildDragBar(blocks,agent,day,fw)}</div></div>
+    <div class="tl-row"><div class="tl-tz" style="color:var(--text-tertiary)">PST</div><div class="tl-outer">${buildPSTBar(blocks,agent,tz)}</div></div>
   </div>`;
+  // Show drag hint tooltip
+  container.querySelector('.drag-bar').title='Drag middle to move · Drag right edge to resize';
+}
+
+// ── Drag tooltip ─────────────────────────────────────────────
+let dragTooltip=null;
+function showDragTip(x,y,text){
+  if(!dragTooltip){dragTooltip=document.createElement('div');dragTooltip.style.cssText='position:fixed;background:var(--text-primary);color:var(--bg-primary);font-size:11px;padding:3px 8px;border-radius:4px;pointer-events:none;z-index:9999;white-space:nowrap;font-family:var(--font)';document.body.appendChild(dragTooltip);}
+  dragTooltip.textContent=text;dragTooltip.style.left=(x+12)+'px';dragTooltip.style.top=(y-28)+'px';dragTooltip.style.display='block';
+}
+function hideDragTip(){if(dragTooltip)dragTooltip.style.display='none';}
+
+// ── Drag handlers ─────────────────────────────────────────────
+document.addEventListener('mousedown',e=>{
+  const handle=e.target.closest('.drag-handle-right');
+  const block=e.target.closest('.drag-block');
+  if(!handle&&!block)return;
+  const el=handle||block;
+  const agent=el.dataset.agent,day=el.dataset.day,fw=parseInt(el.dataset.fw),idx=parseInt(el.dataset.idx);
+  if(!agent)return;
+  e.preventDefault();
+  const bar=document.getElementById(`dragbar-${agent}`);
+  if(!bar)return;
+  const rect=bar.getBoundingClientRect();
+  const blocks=gBlocks(agent,day,fw);
+  drag={
+    active:true,agent,day,fw,blockIdx:idx,
+    mode:handle?'resize':'move',
+    startX:e.clientX,barW:rect.width,
+    barLeft:rect.left,
+    dayStart:Math.min(...blocks.map(b=>t2m(b[1]))),
+    dayEnd:Math.max(...blocks.map(b=>t2m(b[2]))),
+    origBlocks:JSON.parse(JSON.stringify(blocks)),
+  };
+  document.body.style.cursor=handle?'ew-resize':'grabbing';
+  document.body.style.userSelect='none';
+});
+
+document.addEventListener('mousemove',e=>{
+  if(!drag.active)return;
+  const{agent,day,fw,blockIdx,mode,barW,barLeft,dayStart,dayEnd,origBlocks}=drag;
+  const totalMins=dayEnd-dayStart;
+  const pxPerMin=barW/totalMins;
+  const dxMins=Math.round((e.clientX-drag.startX)/pxPerMin/15)*15; // snap to 15
+  const blocks=JSON.parse(JSON.stringify(origBlocks));
+  const b=blocks[blockIdx];
+  const s=t2m(b[1]),en=t2m(b[2]),dur=en-s;
+
+  if(mode==='resize'){
+    // Extend/shrink right edge, push/pull next block
+    const newEnd=Math.max(s+15,en+dxMins);
+    const delta=newEnd-en;
+    b[2]=m2t(newEnd);
+    // Adjust next block if exists
+    if(delta!==0&&blockIdx+1<blocks.length){
+      const nb=blocks[blockIdx+1];
+      const ns=t2m(nb[1]),ne=t2m(nb[2]);
+      const newNs=Math.min(ns+delta,ne-15); // keep min 15min
+      nb[1]=m2t(newNs);
+      if(t2m(nb[2])<=t2m(nb[1]))nb[2]=m2t(t2m(nb[1])+15);
+    }
+    showDragTip(e.clientX,e.clientY,`${b[0]}: ${m2t(t2m(b[1]))} – ${b[2]}`);
+  } else {
+    // Move block, push neighbours
+    const newS=Math.max(dayStart,Math.min(dayEnd-dur,s+dxMins));
+    const newE=newS+dur;
+    b[1]=m2t(newS);b[2]=m2t(newE);
+    // Push prev block left if overlap
+    if(blockIdx>0){const pb=blocks[blockIdx-1];if(t2m(pb[2])>newS)pb[2]=m2t(Math.max(t2m(pb[1])+15,newS));}
+    // Push next block right if overlap
+    if(blockIdx+1<blocks.length){const nb=blocks[blockIdx+1];if(t2m(nb[1])<newE)nb[1]=m2t(Math.min(t2m(nb[2])-15,newE));}
+    showDragTip(e.clientX,e.clientY,`${b[0]}: ${m2d(newS)} – ${m2d(newE)}`);
+  }
+
+  // Live re-render drag bar only
+  const wrap=document.getElementById(`dragbar-wrap-${agent}`);
+  if(wrap){wrap.innerHTML=buildDragBar(blocks,agent,day,fw);}
+  drag._previewBlocks=blocks;
+});
+
+document.addEventListener('mouseup',e=>{
+  if(!drag.active)return;
+  document.body.style.cursor='';document.body.style.userSelect='';hideDragTip();
+  const{agent,day,fw,_previewBlocks}=drag;
+  drag.active=false;
+  if(!_previewBlocks){drag={active:false};return;}
+
+  // Coverage check on proposed state
+  const testS=JSON.parse(JSON.stringify(sched));
+  const testF=JSON.parse(JSON.stringify(fsched));
+  if(day==='Friday')testF[fw][agent]=_previewBlocks;
+  else testS[agent][day]=_previewBlocks;
+  const{gaps}=getCov(day,fw,testS,testF);
+
+  if(gaps.length>0){
+    document.getElementById('cov-modal-desc').textContent=`This change would create inbound coverage gaps on ${day}${day==='Friday'?' (AH Week '+fw+')':''}:`;
+    document.getElementById('cov-modal-gaps').innerHTML=fmtGaps(gaps).map(g=>`<span class="gap-pill">${g}</span>`).join('');
+    // Store for force apply
+    pendingForce={dragBlocks:_previewBlocks,agent,day,fw};
+    document.getElementById('cov-modal').classList.add('open');
+  } else {
+    applyDragCommit(agent,day,fw,_previewBlocks);
+  }
+  drag={active:false};
+});
+
+// Touch support
+document.addEventListener('touchstart',e=>{
+  const t=e.touches[0];
+  const fake=new MouseEvent('mousedown',{clientX:t.clientX,clientY:t.clientY,bubbles:true});
+  e.target.dispatchEvent(fake);
+},{passive:true});
+document.addEventListener('touchmove',e=>{
+  const t=e.touches[0];
+  const fake=new MouseEvent('mousemove',{clientX:t.clientX,clientY:t.clientY,bubbles:true});
+  document.dispatchEvent(fake);
+  e.preventDefault();
+},{passive:false});
+document.addEventListener('touchend',e=>{
+  document.dispatchEvent(new MouseEvent('mouseup',{bubbles:true}));
+});
+
+function applyDragCommit(agent,day,fw,blocks){
+  if(day==='Friday')fsched[fw][agent]=blocks;
+  else sched[agent][day]=blocks;
+  save();renderAll();
+}
+
+function forceApply(){
+  if(!pendingForce)return;
+  closeCovModal();
+  if(pendingForce.dragBlocks){
+    applyDragCommit(pendingForce.agent,pendingForce.day,pendingForce.fw,pendingForce.dragBlocks);
+  } else {
+    const{agent,day,act,ns,ne,fw,delta}=pendingForce;
+    commitEdit(agent,day,act,ns,ne,fw,delta);
+  }
+  pendingForce=null;
 }
 
 function renderManager(){
@@ -442,10 +621,10 @@ function applyEdit(){
   if(gaps.length>0){
     document.getElementById('cov-modal-desc').textContent=`Changing ${agent}'s ${act} on ${day}${day==='Friday'?' (AH Week '+fw+')':''} would create inbound coverage gaps:`;
     document.getElementById('cov-modal-gaps').innerHTML=fmtGaps(gaps).map(g=>`<span class="gap-pill">${g}</span>`).join('');
-    pForce={agent,day,act,ns,ne,fw,delta};document.getElementById('cov-modal').classList.add('open');
+    pendingForce={agent,day,act,ns,ne,fw,delta};document.getElementById('cov-modal').classList.add('open');
   }else{commitEdit(agent,day,act,ns,ne,fw,delta);}
 }
-function forceApply(){if(!pForce)return;const{agent,day,act,ns,ne,fw,delta}=pForce;closeCovModal();commitEdit(agent,day,act,ns,ne,fw,delta);}
+function _unusedForceApply(){}
 function commitEdit(agent,day,act,ns,ne,fw,delta){
   const blocks=day==='Friday'?fsched[fw][agent]:sched[agent][day];
   const idx=blocks.findIndex(b=>b[0]===act);if(idx>-1)blocks[idx]=[act,ns,ne];
@@ -475,7 +654,7 @@ function confirmRedist(){
   closeRedist();save();renderAll();
 }
 function closeRedist(){document.getElementById('redist-modal').classList.remove('open');pRed=null;}
-function closeCovModal(){document.getElementById('cov-modal').classList.remove('open');pForce=null;}
+function closeCovModal(){document.getElementById('cov-modal').classList.remove('open');pendingForce=null;}
 function resetSchedule(){
   if(!confirm('Reset all schedules to the original? This cannot be undone.'))return;
   sched=JSON.parse(JSON.stringify(BASE));fsched=JSON.parse(JSON.stringify(BF));
