@@ -258,8 +258,36 @@ select, input[type=time] { width: 100%; font-size: 13px; padding: 7px 9px; borde
   </div>
 </div>
 
+<!-- Block action modal -->
+<div class="modal-overlay" id="block-action-modal">
+  <div class="modal" style="max-width:360px">
+    <div class="modal-title" id="bam-title">Edit block</div>
+    <div id="bam-info" style="background:var(--bg-secondary);border-radius:var(--radius-md);padding:10px 14px;margin-bottom:1rem;font-size:13px"></div>
+    <div id="bam-edit-panel">
+      <div class="form-row">
+        <div><label>Start time</label><input type="time" id="bam-start"></div>
+        <div><label>End time</label><input type="time" id="bam-end"></div>
+      </div>
+      <div style="margin-bottom:12px"><label>Activity</label><select id="bam-act"></select></div>
+      <div class="btn-row">
+        <button class="bp" onclick="bamSaveEdit()">Save change</button>
+        <button class="bs" onclick="bamShowDelete()">Delete instead</button>
+        <button class="bs" onclick="closeBam()">Cancel</button>
+      </div>
+    </div>
+    <div id="bam-delete-panel" style="display:none">
+      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:.75rem">What should replace this block?</p>
+      <div id="bam-replace-options" style="display:flex;flex-direction:column;gap:6px;margin-bottom:1rem"></div>
+      <div class="btn-row">
+        <button class="bp" onclick="bamConfirmDelete()">Delete &amp; replace</button>
+        <button class="bs" onclick="bamShowEdit()">Edit instead</button>
+        <button class="bs" onclick="closeBam()">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="pin-modal">
-  <div class="modal" style="max-width:320px;text-align:center">
     <div class="modal-title" style="margin-bottom:.5rem">Manager access required</div>
     <p style="font-size:13px;color:var(--text-secondary);margin-bottom:1.25rem">Enter your PIN to edit the schedule.</p>
     <input type="password" id="pin-input" maxlength="10" placeholder="PIN" style="text-align:center;font-size:20px;letter-spacing:6px;margin-bottom:1rem" onkeydown="if(event.key==='Enter')checkPIN()">
@@ -642,7 +670,8 @@ function buildDragBar(blocks,agent,day,fw){
     const lbl=getLabel(b[0],parseFloat(w));
     html+=`<div class="tl-block drag-block" data-agent="${agent}" data-day="${day}" data-fw="${fw}" data-idx="${i}"
       style="width:${w}%;background:${c.bg};color:${c.text};font-size:10px;position:relative;cursor:grab;user-select:none"
-      title="${b[0]}: ${m2d(s)}–${m2d(e)} ${tz}">
+      title="${b[0]}: ${m2d(s)}–${m2d(e)} ${tz}"
+      onclick="openBlockAction(event,'${agent}','${day}',${fw},${i})">
       <span style="pointer-events:none;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;max-width:100%;display:block;text-align:center">${lbl}</span>
       <div class="drag-handle-right" data-agent="${agent}" data-day="${day}" data-fw="${fw}" data-idx="${i}"
         style="position:absolute;right:0;top:0;bottom:0;width:8px;cursor:ew-resize;background:rgba(0,0,0,0.15);border-radius:0 4px 4px 0"></div>
@@ -852,8 +881,9 @@ document.addEventListener('mouseup',e=>{
   drag._pendingDay=day;
   drag._pendingFw=fw;
   drag._origBlocks=origBlocks;
+  drag._wasDrag=true; // flag to suppress click modal
   document.getElementById('drag-confirm-modal').classList.add('open');
-  drag={active:false};
+  drag={active:false,_wasDrag:true};
 });
 
 // Touch support
@@ -1092,7 +1122,7 @@ function onAddDayChange(){
   updateEditDateDisplay();
 }
 function populateSelects(){
-  ['edit-activity','add-activity','builder-act'].forEach(id=>{
+  ['edit-activity','add-activity','builder-act','bam-act'].forEach(id=>{
     const el=document.getElementById(id);
     if(el) el.innerHTML=ACTIVITIES.map(a=>`<option>${a}</option>`).join('');
   });
@@ -1528,6 +1558,112 @@ function execCopyFromDate(){
   alert(`✓ Copied ${agents.join(', ')}'s schedule from ${srcDisp} to ${copied} date entries.`);
   copyDestDates=[];
   renderCopyDestList();
+}
+
+// ── Block action modal (click to edit/delete) ─────────────────
+let bam={}; // current block being acted on: {agent,day,fw,idx,block}
+
+function openBlockAction(e,agent,day,fw,idx){
+  // Don't open if this was a drag start — check if mouse moved
+  if(drag._wasDrag){drag._wasDrag=false;return;}
+  if(!managerUnlocked) return; // PIN required — mousedown will handle prompting
+  e.stopPropagation();
+  const blocks=getRawBlocks(agent,day,fw);
+  if(idx>=blocks.length) return;
+  const b=blocks[idx];
+  const tz=ATZ[agent];
+  bam={agent,day,fw,idx,block:b};
+
+  // Populate modal
+  document.getElementById('bam-title').textContent=`${agent} · ${b[0]}`;
+  const dateStr=toISO(dateOfDay(day,weekOffset));
+  const dateDisp=new Date(dateStr+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+  document.getElementById('bam-info').innerHTML=
+    `<strong>${b[0]}</strong> &nbsp;${m2d(t2m(b[1]))}–${m2d(t2m(b[2]))} <span style="color:#185FA5">${tz}</span>
+     <span style="color:var(--text-tertiary);margin-left:8px">${dateDisp}</span>`;
+
+  // Edit panel defaults
+  document.getElementById('bam-start').value=b[1];
+  document.getElementById('bam-end').value=b[2];
+  document.getElementById('bam-act').value=b[0];
+
+  // Delete replacement options: On Phones + neighbours
+  const opts=['On Phones'];
+  if(idx>0) opts.push(`Merge with "${blocks[idx-1][0]}" (extend previous block)`);
+  if(idx<blocks.length-1) opts.push(`Merge with "${blocks[idx+1][0]}" (extend next block)`);
+  document.getElementById('bam-replace-options').innerHTML=opts.map((o,i)=>
+    `<label style="display:flex;align-items:center;gap:8px;font-size:13px;padding:6px 10px;border-radius:var(--radius-md);border:0.5px solid var(--border-light);cursor:pointer">
+      <input type="radio" name="bam-replace" value="${i}" ${i===0?'checked':''} style="margin:0"> ${o}
+    </label>`
+  ).join('');
+
+  bamShowEdit();
+  document.getElementById('block-action-modal').classList.add('open');
+}
+
+function bamShowEdit(){
+  document.getElementById('bam-edit-panel').style.display='block';
+  document.getElementById('bam-delete-panel').style.display='none';
+}
+function bamShowDelete(){
+  document.getElementById('bam-edit-panel').style.display='none';
+  document.getElementById('bam-delete-panel').style.display='block';
+}
+
+function bamSaveEdit(){
+  const ns=document.getElementById('bam-start').value;
+  const ne=document.getElementById('bam-end').value;
+  const act=document.getElementById('bam-act').value;
+  if(!ns||!ne){alert('Please enter start and end times.');return;}
+  if(t2m(ne)<=t2m(ns)){alert('End time must be after start time.');return;}
+  const{agent,day,fw,idx}=bam;
+  const blocks=JSON.parse(JSON.stringify(getRawBlocks(agent,day,fw)));
+  blocks[idx]=[act,ns,ne];
+  blocks.sort((a,b)=>t2m(a[1])-t2m(b[1]));
+  saveBlocksForDate(agent,day,fw,blocks);
+  closeBam();
+}
+
+function bamConfirmDelete(){
+  const sel=document.querySelector('input[name="bam-replace"]:checked');
+  const choice=sel?parseInt(sel.value):0;
+  const{agent,day,fw,idx,block}=bam;
+  let blocks=JSON.parse(JSON.stringify(getRawBlocks(agent,day,fw)));
+  const s=t2m(block[1]),e=t2m(block[2]);
+
+  if(choice===0){
+    // Replace with On Phones
+    blocks[idx]=['On Phones',block[1],block[2]];
+    blocks=mergeOP(blocks); // merge adjacent On Phones
+  } else if(choice===1&&idx>0){
+    // Extend previous block to cover this slot
+    blocks[idx-1][2]=block[2];
+    blocks.splice(idx,1);
+  } else if(idx<blocks.length-1){
+    // Extend next block to cover this slot
+    blocks[idx+1][1]=block[1];
+    blocks.splice(idx,1);
+  }
+  saveBlocksForDate(agent,day,fw,blocks);
+  closeBam();
+}
+
+function saveBlocksForDate(agent,day,fw,blocks){
+  const dateStr=toISO(dateOfDay(day,weekOffset));
+  const clean=blocks.filter(b=>t2m(b[2])>t2m(b[1])).sort((a,b)=>t2m(a[1])-t2m(b[1]));
+  if(day==='Friday'){
+    if(!friOverrides[fw][agent]) friOverrides[fw][agent]={};
+    friOverrides[fw][agent][dateStr]=clean;
+  } else {
+    if(!schedOverrides[agent]) schedOverrides[agent]={};
+    schedOverrides[agent][dateStr]=clean;
+  }
+  save();renderAll();
+}
+
+function closeBam(){
+  document.getElementById('block-action-modal').classList.remove('open');
+  bam={};
 }
 
 function renderAll(){renderManager();renderAgent();if(document.getElementById('view-coverage').classList.contains('active'))renderCovTab();}
