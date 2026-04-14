@@ -146,7 +146,7 @@ select, input[type=time] { width: 100%; font-size: 13px; padding: 7px 9px; borde
     <div id="agent-blocks"></div>
   </div>
   <div id="view-edit" class="view">
-    <div class="alert-box a-info" style="margin-bottom:1rem"><span>Click any block on a timeline to pre-fill the form, or fill it out manually.</span></div>
+    <div class="alert-box a-info" style="margin-bottom:1rem"><span>Click any block on a timeline to pre-fill the form, or fill it out manually. Editing applies to the <strong id="edit-date-label">current week</strong>.</span></div>
     <div class="card">
       <div class="card-title">Edit a time block</div>
       <div class="form-row three">
@@ -156,7 +156,9 @@ select, input[type=time] { width: 100%; font-size: 13px; padding: 7px 9px; borde
       </div>
       <div class="form-row"><div><label>New start time</label><input type="time" id="edit-start"></div><div><label>New end time</label><input type="time" id="edit-end"></div></div>
       <input type="hidden" id="edit-orig-start">
+      <input type="hidden" id="edit-week-offset">
       <div id="edit-fri-row" style="display:none;margin-bottom:10px"><label>Friday week</label><select id="edit-fri-week"><option value="1">AH Week 1</option><option value="2">AH Week 2</option><option value="3">AH Week 3</option></select></div>
+      <div style="font-size:12px;color:var(--text-tertiary);margin-bottom:10px" id="edit-date-display"></div>
       <div class="btn-row"><button class="bp" onclick="applyEdit()">Apply change</button><button class="bs" onclick="resetSchedule()">Reset to original</button></div>
     </div>
     <div class="card">
@@ -168,6 +170,7 @@ select, input[type=time] { width: 100%; font-size: 13px; padding: 7px 9px; borde
       </div>
       <div class="form-row"><div><label>Start time</label><input type="time" id="add-start"></div><div><label>End time</label><input type="time" id="add-end"></div></div>
       <div id="add-fri-row" style="display:none;margin-bottom:10px"><label>Friday week</label><select id="add-fri-week"><option value="1">AH Week 1</option><option value="2">AH Week 2</option><option value="3">AH Week 3</option></select></div>
+      <div style="font-size:12px;color:var(--text-tertiary);margin-bottom:10px" id="add-date-display"></div>
       <div class="btn-row"><button class="bp" onclick="addBlock()">Add block</button></div>
     </div>
   </div>
@@ -196,6 +199,29 @@ select, input[type=time] { width: 100%; font-size: 13px; padding: 7px 9px; borde
     <p style="font-size:13px;color:var(--text-secondary);margin-bottom:1rem" id="redist-desc"></p>
     <div id="redist-agents"></div>
     <div class="btn-row" style="margin-top:1rem"><button class="bp" onclick="confirmRedist()">Apply redistribution</button><button class="bs" onclick="closeRedist()">Skip, just save</button></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="multi-date-modal">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-title" id="mdate-title">Apply to more dates?</div>
+    <p style="font-size:13px;color:var(--text-secondary);margin-bottom:1rem" id="mdate-desc"></p>
+    <div style="margin-bottom:1rem">
+      <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:6px">Upcoming occurrences</div>
+      <div id="mdate-occurrences" style="display:flex;flex-direction:column;gap:5px"></div>
+    </div>
+    <div style="margin-bottom:1rem">
+      <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:6px">Or pick a specific date</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="date" id="mdate-picker" style="font-size:13px;padding:6px 8px;border:0.5px solid var(--border-mid);border-radius:var(--radius-md);background:var(--bg-primary);color:var(--text-primary);font-family:var(--font)">
+        <button class="bs" onclick="addPickedDate()" style="white-space:nowrap">Add date</button>
+      </div>
+      <div id="mdate-picked" style="display:flex;flex-wrap:wrap;gap:5px;margin-top:8px"></div>
+    </div>
+    <div class="btn-row">
+      <button class="bp" onclick="confirmMultiDate()">Apply to selected dates</button>
+      <button class="bs" onclick="closeMultiDate()">Skip</button>
+    </div>
   </div>
 </div>
 
@@ -270,7 +296,12 @@ let sched=JSON.parse(JSON.stringify(BASE)),fsched=JSON.parse(JSON.stringify(BF))
 // noOB and ooo now keyed by ISO date string 'YYYY-MM-DD' instead of day name
 let noOB={};  // {dateStr: {Ebony:bool, Marisa:bool, Ky:bool}}
 let ooo={};   // {agent: {dateStr: true/false}}
-AGENTS.forEach(a=>{ooo[a]={};});
+// schedOverrides: date-specific block overrides that take priority over base sched
+// {agent: {dateStr: [blocks]}} for weekdays
+// friOverrides: {fw: {agent: {dateStr: [blocks]}}} for Fridays
+let schedOverrides={};
+let friOverrides={1:{},2:{},3:{}};
+AGENTS.forEach(a=>{ooo[a]={};schedOverrides[a]={};[1,2,3].forEach(fw=>{friOverrides[fw][a]={};});});
 let pRed=null,pendingForce=null;
 
 // ── Week navigation ──────────────────────────────────────────
@@ -321,14 +352,31 @@ function getFriWeekForDate(d){
 // State: current selected day name + week offset (shared across views)
 let mDay='Monday',mFW=gfw(tf),aView='Ebony',aDay='Monday',aFW=gfw(tf),cDay='Monday',cFW=gfw(tf);
 
+const SOK='mending-overrides-v1',FOK='mending-fri-overrides-v1';
 function save(){
   setSS('saving');
-  try{localStorage.setItem(SK,JSON.stringify(sched));localStorage.setItem(FK,JSON.stringify(fsched));localStorage.setItem(OK,JSON.stringify(noOB));localStorage.setItem(OOK,JSON.stringify(ooo));setSS('saved');}
-  catch(e){setSS('error');}
+  try{
+    localStorage.setItem(SK,JSON.stringify(sched));
+    localStorage.setItem(FK,JSON.stringify(fsched));
+    localStorage.setItem(OK,JSON.stringify(noOB));
+    localStorage.setItem(OOK,JSON.stringify(ooo));
+    localStorage.setItem(SOK,JSON.stringify(schedOverrides));
+    localStorage.setItem(FOK,JSON.stringify(friOverrides));
+    setSS('saved');
+  }catch(e){setSS('error');}
 }
 function load(){
-  try{const s=localStorage.getItem(SK),f=localStorage.getItem(FK),o=localStorage.getItem(OK),oo=localStorage.getItem(OOK);if(s)sched=JSON.parse(s);if(f)fsched=JSON.parse(f);if(o)noOB=JSON.parse(o);if(oo)ooo=JSON.parse(oo);setSS('saved');}
-  catch(e){setSS('saved');}
+  try{
+    const s=localStorage.getItem(SK),f=localStorage.getItem(FK),o=localStorage.getItem(OK),
+          oo=localStorage.getItem(OOK),so=localStorage.getItem(SOK),fo=localStorage.getItem(FOK);
+    if(s)sched=JSON.parse(s);
+    if(f)fsched=JSON.parse(f);
+    if(o)noOB=JSON.parse(o);
+    if(oo)ooo=JSON.parse(oo);
+    if(so)schedOverrides=JSON.parse(so);
+    if(fo)friOverrides=JSON.parse(fo);
+    setSS('saved');
+  }catch(e){setSS('saved');}
   renderAll();
 }
 function setSS(st){
@@ -366,9 +414,28 @@ function toggleOOO(agent,dateStr){
   save();renderAll();
 }
 
-function gBlocks(agent,day,fw,tS,tF){
-  let blocks=day==='Friday'?(tF||fsched)[fw][agent]||[]:(tS||sched)[agent][day]||[];
+function getRawBlocks(agent,day,fw){
   const dateStr=toISO(dateOfDay(day,weekOffset));
+  // Check date-specific override first
+  if(day==='Friday'){
+    if(friOverrides[fw]&&friOverrides[fw][agent]&&friOverrides[fw][agent][dateStr])
+      return JSON.parse(JSON.stringify(friOverrides[fw][agent][dateStr]));
+    return fsched[fw]&&fsched[fw][agent]?JSON.parse(JSON.stringify(fsched[fw][agent])):[];
+  }
+  if(schedOverrides[agent]&&schedOverrides[agent][dateStr])
+    return JSON.parse(JSON.stringify(schedOverrides[agent][dateStr]));
+  return sched[agent]&&sched[agent][day]?JSON.parse(JSON.stringify(sched[agent][day])):[];
+}
+
+function gBlocks(agent,day,fw,tS,tF){
+  const dateStr=toISO(dateOfDay(day,weekOffset));
+  // Get base blocks — check date overrides first, then tS/tF test copies, then live sched
+  let blocks;
+  if(tS||tF){
+    blocks=day==='Friday'?(tF||fsched)[fw][agent]||[]:(tS||sched)[agent][day]||[];
+  } else {
+    blocks=getRawBlocks(agent,day,fw);
+  }
   if(day!=='Friday'&&noOB[dateStr]&&noOB[dateStr][agent]){
     blocks=mergeOP(blocks.map(x=>x[0]==='Outbound'?['On Phones',x[1],x[2]]:x));
   }
@@ -764,12 +831,15 @@ function cancelDrag(){
 }
 
 function applyDragCommit(agent,day,fw,blocks){
-  // Sort by start time and remove zero-duration blocks before saving
-  const clean=blocks
-    .filter(b=>t2m(b[2])>t2m(b[1]))
-    .sort((a,b)=>t2m(a[1])-t2m(b[1]));
-  if(day==='Friday')fsched[fw][agent]=clean;
-  else sched[agent][day]=clean;
+  const dateStr=toISO(dateOfDay(day,weekOffset));
+  const clean=blocks.filter(b=>t2m(b[2])>t2m(b[1])).sort((a,b)=>t2m(a[1])-t2m(b[1]));
+  if(day==='Friday'){
+    if(!friOverrides[fw][agent]) friOverrides[fw][agent]={};
+    friOverrides[fw][agent][dateStr]=clean;
+  } else {
+    if(!schedOverrides[agent]) schedOverrides[agent]={};
+    schedOverrides[agent][dateStr]=clean;
+  }
   save();renderAll();
 }
 
@@ -779,8 +849,8 @@ function forceApply(){
   if(pendingForce.dragBlocks){
     applyDragCommit(pendingForce.agent,pendingForce.day,pendingForce.fw,pendingForce.dragBlocks);
   } else {
-    const{agent,day,act,ns,ne,fw,delta,origStart}=pendingForce;
-    commitEdit(agent,day,act,ns,ne,fw,delta,origStart);
+    const{agent,day,act,ns,ne,fw,delta,origStart,editWO}=pendingForce;
+    commitEdit(agent,day,act,ns,ne,fw,delta,origStart,editWO);
   }
   pendingForce=null;
 }
@@ -914,63 +984,225 @@ function renderCovTab(){
 function setCD(d){cDay=d;renderCovTab();}
 function setCovFriWeek(w){cFW=w;renderCovTab();}
 
+function updateEditDateDisplay(){
+  const day=document.getElementById('edit-day').value;
+  const wo=parseInt(document.getElementById('edit-week-offset').value)||weekOffset;
+  const d=dateOfDay(day,wo);
+  const disp=d.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
+  document.getElementById('edit-date-display').textContent=`Editing: ${disp}`;
+  // Also update add block date display
+  const addDay=document.getElementById('add-day').value;
+  const addD=dateOfDay(addDay,weekOffset);
+  const addDisp=addD.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
+  const addEl=document.getElementById('add-date-display');
+  if(addEl) addEl.textContent=`Adding to: ${addDisp}`;
+}
 function clickBlock(agent,day,s,e,act,fw){
-  // s and e come from the drag bar which uses getRawBlocks — correct
   document.getElementById('edit-agent').value=agent;
   document.getElementById('edit-day').value=day;
   document.getElementById('edit-activity').value=act;
   document.getElementById('edit-start').value=m2t(s);
   document.getElementById('edit-end').value=m2t(e);
-  document.getElementById('edit-orig-start').value=m2t(s); // store original start for matching
+  document.getElementById('edit-orig-start').value=m2t(s);
+  document.getElementById('edit-week-offset').value=weekOffset; // capture current week
   document.getElementById('edit-fri-week').value=fw;
   document.getElementById('edit-fri-row').style.display=day==='Friday'?'block':'none';
   switchTab('edit');
+  updateEditDateDisplay();
 }
-function onEditDayChange(){document.getElementById('edit-fri-row').style.display=document.getElementById('edit-day').value==='Friday'?'block':'none';}
-function onAddDayChange(){document.getElementById('add-fri-row').style.display=document.getElementById('add-day').value==='Friday'?'block':'none';}
+function onEditDayChange(){
+  document.getElementById('edit-fri-row').style.display=document.getElementById('edit-day').value==='Friday'?'block':'none';
+  document.getElementById('edit-week-offset').value=weekOffset;
+  updateEditDateDisplay();
+}
+function onAddDayChange(){
+  document.getElementById('add-fri-row').style.display=document.getElementById('add-day').value==='Friday'?'block':'none';
+  updateEditDateDisplay();
+}
 function populateSelects(){
   ['edit-activity','add-activity'].forEach(id=>{document.getElementById(id).innerHTML=ACTIVITIES.map(a=>`<option>${a}</option>`).join('');});
   ['edit-day','add-day'].forEach(id=>{document.getElementById(id).innerHTML=DAYS.map(d=>`<option>${d}</option>`).join('');});
 }
 function applyEdit(){
-  const agent=document.getElementById('edit-agent').value,day=document.getElementById('edit-day').value,act=document.getElementById('edit-activity').value;
-  const ns=document.getElementById('edit-start').value,ne=document.getElementById('edit-end').value;
-  const origStart=document.getElementById('edit-orig-start').value; // original start to match correct block
+  const agent=document.getElementById('edit-agent').value;
+  const day=document.getElementById('edit-day').value;
+  const act=document.getElementById('edit-activity').value;
+  const ns=document.getElementById('edit-start').value;
+  const ne=document.getElementById('edit-end').value;
+  const origStart=document.getElementById('edit-orig-start').value;
+  const editWO=parseInt(document.getElementById('edit-week-offset').value);
   if(!ns||!ne){alert('Please fill in start and end times.');return;}
   const fw=parseInt(document.getElementById('edit-fri-week').value);
-  const tS=JSON.parse(JSON.stringify(sched)),tF=JSON.parse(JSON.stringify(fsched));
-  const blocks=day==='Friday'?tF[fw][agent]:tS[agent][day];
-  // Match by activity + original start time for precision
-  let idx=blocks.findIndex(b=>b[0]===act&&b[1]===origStart);
-  if(idx===-1) idx=blocks.findIndex(b=>b[0]===act); // fallback
-  if(idx===-1){alert('Block not found. Try adding it instead.');return;}
-  const oldD=t2m(blocks[idx][2])-t2m(blocks[idx][1]);blocks[idx]=[act,ns,ne];
+
+  // Temporarily set weekOffset to the edit's week so getRawBlocks resolves correctly
+  const savedWO=weekOffset;
+  weekOffset=isNaN(editWO)?savedWO:editWO;
+
+  // Get current blocks for this specific date (respects overrides)
+  const currentBlocks=JSON.parse(JSON.stringify(getRawBlocks(agent,day,fw)));
+
+  // Find the block to edit
+  let idx=origStart?currentBlocks.findIndex(b=>b[0]===act&&b[1]===origStart):-1;
+  if(idx===-1) idx=currentBlocks.findIndex(b=>b[0]===act);
+  if(idx===-1){
+    weekOffset=savedWO;
+    alert('Block not found. Try adding it instead.');
+    return;
+  }
+
+  // Build test copy to check coverage
+  const testBlocks=JSON.parse(JSON.stringify(currentBlocks));
+  const oldD=t2m(testBlocks[idx][2])-t2m(testBlocks[idx][1]);
+  testBlocks[idx]=[act,ns,ne];
   const delta=t2m(ne)-t2m(ns)-oldD;
+
+  // Build test sched copies for coverage check
+  const tS=JSON.parse(JSON.stringify(sched));
+  const tF=JSON.parse(JSON.stringify(fsched));
+  if(day==='Friday') tF[fw][agent]=testBlocks;
+  else tS[agent][day]=testBlocks;
+
   const{gaps}=getCov(day,fw,tS,tF);
+  weekOffset=savedWO; // restore
+
   if(gaps.length>0){
     document.getElementById('cov-modal-desc').textContent=`Changing ${agent}'s ${act} on ${day}${day==='Friday'?' (AH Week '+fw+')':''} would create inbound coverage gaps:`;
     document.getElementById('cov-modal-gaps').innerHTML=fmtGaps(gaps).map(g=>`<span class="gap-pill">${g}</span>`).join('');
-    pendingForce={agent,day,act,ns,ne,fw,delta,origStart};document.getElementById('cov-modal').classList.add('open');
-  }else{commitEdit(agent,day,act,ns,ne,fw,delta,origStart);}
+    pendingForce={agent,day,act,ns,ne,fw,delta,origStart,editWO};
+    document.getElementById('cov-modal').classList.add('open');
+  } else {
+    commitEdit(agent,day,act,ns,ne,fw,delta,origStart,editWO);
+  }
 }
 function _unusedForceApply(){}
-function commitEdit(agent,day,act,ns,ne,fw,delta,origStart){
-  const blocks=day==='Friday'?fsched[fw][agent]:sched[agent][day];
+function commitEdit(agent,day,act,ns,ne,fw,delta,origStart,editWO){
+  const savedWO=weekOffset;
+  weekOffset=isNaN(editWO)?savedWO:(editWO||0);
+  const dateStr=toISO(dateOfDay(day,weekOffset));
+  const blocks=JSON.parse(JSON.stringify(getRawBlocks(agent,day,fw)));
   let idx=origStart?blocks.findIndex(b=>b[0]===act&&b[1]===origStart):-1;
   if(idx===-1) idx=blocks.findIndex(b=>b[0]===act);
-  if(idx>-1)blocks[idx]=[act,ns,ne];
-  // Sort after edit
+  if(idx>-1) blocks[idx]=[act,ns,ne];
   blocks.sort((a,b)=>t2m(a[1])-t2m(b[1]));
-  if(delta!==0)showRedistModal(agent,day,act,delta,fw);else{save();renderAll();}
+  if(day==='Friday'){
+    if(!friOverrides[fw][agent]) friOverrides[fw][agent]={};
+    friOverrides[fw][agent][dateStr]=blocks;
+  } else {
+    if(!schedOverrides[agent]) schedOverrides[agent]={};
+    schedOverrides[agent][dateStr]=blocks;
+  }
+  weekOffset=savedWO;
+  if(delta!==0) showRedistModal(agent,day,act,delta,fw);
+  else{save();renderAll();openMultiDateModal(agent,day,fw,blocks);}
 }
 function addBlock(){
   const agent=document.getElementById('add-agent').value,day=document.getElementById('add-day').value,act=document.getElementById('add-activity').value;
   const s=document.getElementById('add-start').value,e=document.getElementById('add-end').value;
   if(!s||!e){alert('Please fill in start and end times.');return;}
   const fw=parseInt(document.getElementById('add-fri-week').value);
-  const blocks=day==='Friday'?fsched[fw][agent]:sched[agent][day];
-  blocks.push([act,s,e]);blocks.sort((a,b)=>t2m(a[1])-t2m(b[1]));save();renderAll();
+  const dateStr=toISO(dateOfDay(day,weekOffset));
+  const blocks=JSON.parse(JSON.stringify(getRawBlocks(agent,day,fw)));
+  blocks.push([act,s,e]);
+  blocks.sort((a,b)=>t2m(a[1])-t2m(b[1]));
+  if(day==='Friday'){
+    if(!friOverrides[fw][agent]) friOverrides[fw][agent]={};
+    friOverrides[fw][agent][dateStr]=blocks;
+  } else {
+    if(!schedOverrides[agent]) schedOverrides[agent]={};
+    schedOverrides[agent][dateStr]=blocks;
+  }
+  save();renderAll();
 }
+// ── Multi-date apply ─────────────────────────────────────────
+let multiDatePending=null; // {agent, day, fw, blocks}
+let multiDateExtra=[]; // additional picked dates as ISO strings
+
+function openMultiDateModal(agent,day,fw,blocks){
+  multiDatePending={agent,day,fw,blocks};
+  multiDateExtra=[];
+  const tz=ATZ[agent];
+  document.getElementById('mdate-title').textContent=`Apply to more dates?`;
+  document.getElementById('mdate-desc').textContent=
+    `The change to ${agent}'s schedule on ${new Date(toISO(dateOfDay(day,weekOffset))+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})} has been saved. Apply the same change to additional ${day}s?`;
+
+  // Show next 5 occurrences of this day name
+  const occ=[];
+  for(let i=1;i<=8;i++){
+    const d=dateOfDay(day,weekOffset+i);
+    if(d.toLocaleDateString('en-US',{weekday:'long'})===day){
+      occ.push(toISO(d));
+      if(occ.length>=5) break;
+    }
+  }
+  // Actually get next 5 weeks' same day
+  const next5=[];
+  for(let w=1;w<=5;w++){
+    next5.push(toISO(dateOfDay(day,weekOffset+w)));
+  }
+
+  document.getElementById('mdate-occurrences').innerHTML=next5.map(ds=>{
+    const disp=new Date(ds+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'});
+    const hasOverride=schedOverrides[agent]&&schedOverrides[agent][ds];
+    return`<label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;padding:6px 10px;border-radius:var(--radius-md);border:0.5px solid var(--border-light)">
+      <input type="checkbox" class="mdate-occ" value="${ds}" style="margin:0">
+      <span>${disp}</span>
+      ${hasOverride?`<span style="font-size:10px;color:#185FA5;margin-left:auto">has edits</span>`:''}
+    </label>`;
+  }).join('');
+
+  document.getElementById('mdate-picked').innerHTML='';
+  document.getElementById('mdate-picker').value='';
+  document.getElementById('multi-date-modal').classList.add('open');
+}
+
+function addPickedDate(){
+  const val=document.getElementById('mdate-picker').value;
+  if(!val)return;
+  if(multiDateExtra.includes(val)){return;}
+  multiDateExtra.push(val);
+  renderPickedDates();
+  document.getElementById('mdate-picker').value='';
+}
+
+function renderPickedDates(){
+  document.getElementById('mdate-picked').innerHTML=multiDateExtra.map(ds=>{
+    const disp=new Date(ds+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+    return`<span style="font-size:12px;background:#E6F1FB;color:#185FA5;border:0.5px solid #B5D4F4;padding:2px 8px;border-radius:20px;display:inline-flex;align-items:center;gap:5px">
+      ${disp} <span onclick="removePickedDate('${ds}')" style="cursor:pointer;font-size:14px;line-height:1">×</span>
+    </span>`;
+  }).join('');
+}
+
+function removePickedDate(ds){
+  multiDateExtra=multiDateExtra.filter(d=>d!==ds);
+  renderPickedDates();
+}
+
+function confirmMultiDate(){
+  if(!multiDatePending)return;
+  const{agent,day,fw,blocks}=multiDatePending;
+  // Collect checked occurrences
+  const checked=[...document.querySelectorAll('.mdate-occ:checked')].map(c=>c.value);
+  const allDates=[...new Set([...checked,...multiDateExtra])];
+  allDates.forEach(ds=>{
+    const clean=JSON.parse(JSON.stringify(blocks));
+    if(day==='Friday'){
+      if(!friOverrides[fw][agent]) friOverrides[fw][agent]={};
+      friOverrides[fw][agent][ds]=clean;
+    } else {
+      if(!schedOverrides[agent]) schedOverrides[agent]={};
+      schedOverrides[agent][ds]=clean;
+    }
+  });
+  closeMultiDate();
+  save();renderAll();
+}
+
+function closeMultiDate(){
+  document.getElementById('multi-date-modal').classList.remove('open');
+  multiDatePending=null;multiDateExtra=[];
+}
+
 function showRedistModal(cA,day,act,delta,fw){
   const others=AGENTS.filter(a=>a!==cA);
   document.getElementById('redist-title').textContent='Redistribute time to other agents?';
@@ -991,7 +1223,8 @@ function closeCovModal(){document.getElementById('cov-modal').classList.remove('
 function resetSchedule(){
   if(!confirm('Reset all schedules to the original? This cannot be undone.'))return;
   sched=JSON.parse(JSON.stringify(BASE));fsched=JSON.parse(JSON.stringify(BF));
-  noOB={};ooo={};AGENTS.forEach(a=>{ooo[a]={};});
+  noOB={};ooo={};schedOverrides={};friOverrides={1:{},2:{},3:{}};
+  AGENTS.forEach(a=>{ooo[a]={};schedOverrides[a]={};[1,2,3].forEach(fw=>{friOverrides[fw][a]={};});});
   save();renderAll();
 }
 const MANAGER_PIN='0097';
@@ -1130,11 +1363,16 @@ function closeCopyModal(){document.getElementById('copy-modal').classList.remove
 function switchTab(tab){
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
-  // Find tab by either onclick pattern
   const tabEl=document.querySelector(`.tab[onclick="switchTab('${tab}')"]`)||document.querySelector(`.tab[onclick="requirePIN('${tab}')"]`);
   if(tabEl)tabEl.classList.add('active');
   document.getElementById(`view-${tab}`).classList.add('active');
   if(tab==='coverage')renderCovTab();
+  if(tab==='edit'){
+    // Sync weekOffset into form if not already set by clickBlock
+    if(!document.getElementById('edit-week-offset').value)
+      document.getElementById('edit-week-offset').value=weekOffset;
+    updateEditDateDisplay();
+  }
 }
 
 setSS('loading');populateSelects();buildLegend();load();
