@@ -827,6 +827,914 @@ function cancelDrag(){
   document.getElementById('drag-confirm-modal').classList.remove('open');
   // Re-render to restore original state visually
   renderManager();
+  drag={active:false};<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mending — Member Ops Schedule</title>
+<style>
+:root {
+  --bg-primary: #ffffff; --bg-secondary: #f5f5f3; --bg-tertiary: #eeede9;
+  --text-primary: #1a1a18; --text-secondary: #5f5e5a; --text-tertiary: #888780;
+  --border-light: rgba(0,0,0,0.1); --border-mid: rgba(0,0,0,0.2); --border-strong: rgba(0,0,0,0.32);
+  --radius-sm: 6px; --radius-md: 8px; --radius-lg: 12px;
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-primary: #1c1c1a; --bg-secondary: #252523; --bg-tertiary: #2c2c2a;
+    --text-primary: #f0ede6; --text-secondary: #a8a79f; --text-tertiary: #666560;
+    --border-light: rgba(255,255,255,0.08); --border-mid: rgba(255,255,255,0.16); --border-strong: rgba(255,255,255,0.26);
+  }
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font); background: var(--bg-tertiary); min-height: 100vh; padding: 1.5rem 1rem; color: var(--text-primary); }
+.container { max-width: 900px; margin: 0 auto; background: var(--bg-primary); border-radius: var(--radius-lg); border: 0.5px solid var(--border-light); padding: 1.5rem; }
+.app-header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 0.5px solid var(--border-light); flex-wrap: wrap; gap: 8px; }
+.app-title { font-size: 16px; font-weight: 500; }
+.app-meta { font-size: 12px; color: var(--text-tertiary); }
+.save-indicator { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-tertiary); }
+.save-dot { width: 7px; height: 7px; border-radius: 50%; background: #639922; flex-shrink: 0; transition: background 0.3s; }
+.tabs { display: flex; gap: 4px; margin-bottom: 1.5rem; border-bottom: 0.5px solid var(--border-light); flex-wrap: wrap; }
+.tab { padding: 8px 16px; font-size: 13px; cursor: pointer; border: none; background: transparent; color: var(--text-secondary); border-bottom: 2px solid transparent; margin-bottom: -1px; font-family: var(--font); }
+.tab.active { color: var(--text-primary); font-weight: 500; border-bottom: 2px solid var(--text-primary); }
+.view { display: none; } .view.active { display: block; }
+.day-select { display: flex; gap: 6px; margin-bottom: 1.25rem; flex-wrap: wrap; align-items: center; }
+.day-btn { padding: 5px 12px; font-size: 12px; border: 0.5px solid var(--border-light); border-radius: var(--radius-md); cursor: pointer; background: transparent; color: var(--text-secondary); font-family: var(--font); }
+.day-btn.active { background: var(--text-primary); color: var(--bg-primary); }
+.fri-label { font-size: 11px; color: var(--text-tertiary); padding: 4px 0; margin-left: 4px; }
+.fri-toggle { display: flex; gap: 4px; }
+.fri-btn { padding: 4px 9px; font-size: 11px; border: 0.5px solid var(--border-light); border-radius: var(--radius-md); cursor: pointer; background: transparent; color: var(--text-tertiary); font-family: var(--font); }
+.fri-btn.active { background: #CECBF6; color: #3C3489; border-color: #AFA9EC; font-weight: 500; }
+.agent-select { display: flex; gap: 8px; margin-bottom: 1.25rem; flex-wrap: wrap; }
+.agent-btn { padding: 6px 14px; font-size: 13px; border: 0.5px solid var(--border-mid); border-radius: var(--radius-md); cursor: pointer; background: var(--bg-primary); color: var(--text-secondary); font-family: var(--font); }
+.agent-btn.active { background: var(--bg-secondary); color: var(--text-primary); font-weight: 500; }
+.ob-row { display: flex; align-items: center; gap: 10px; margin-bottom: 1.25rem; padding: 10px 14px; border-radius: var(--radius-md); border: 0.5px solid var(--border-light); background: var(--bg-secondary); }
+.ob-label { font-size: 13px; color: var(--text-secondary); flex: 1; }
+.ob-label strong { color: var(--text-primary); font-weight: 500; }
+.toggle-switch { position: relative; width: 40px; height: 22px; flex-shrink: 0; }
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
+.toggle-slider { position: absolute; inset: 0; background: var(--border-mid); border-radius: 22px; cursor: pointer; transition: background 0.2s; }
+.toggle-slider:before { content: ''; position: absolute; height: 16px; width: 16px; left: 3px; top: 3px; background: white; border-radius: 50%; transition: transform 0.2s; }
+.toggle-switch input:checked + .toggle-slider { background: #378ADD; }
+.toggle-switch input:checked + .toggle-slider:before { transform: translateX(18px); }
+.ob-badge { font-size: 11px; padding: 2px 8px; border-radius: var(--radius-md); font-weight: 500; background: #E6F1FB; color: #185FA5; border: 0.5px solid #B5D4F4; }
+.ob-badge.noob { background: #FAEEDA; color: #633806; border-color: #FAC775; }
+.legend { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 1.25rem; }
+.legend-item { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text-secondary); }
+.legend-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+.agent-row { margin-bottom: 1.25rem; }
+.agent-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px; }
+.agent-name { font-size: 11px; font-weight: 500; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em; }
+.tz-pills { display: flex; gap: 5px; align-items: center; }
+.tz-pill { font-size: 10px; padding: 2px 7px; border-radius: 20px; font-weight: 500; border: 0.5px solid; }
+.tz-pill.agent { background: #E6F1FB; color: #185FA5; border-color: #B5D4F4; }
+.tz-pill.pst { background: var(--bg-secondary); color: var(--text-tertiary); border-color: var(--border-light); }
+.dual-wrap { display: flex; flex-direction: column; gap: 3px; }
+.tl-row { display: flex; align-items: center; gap: 8px; }
+.tl-tz { font-size: 10px; width: 28px; text-align: right; flex-shrink: 0; font-weight: 500; }
+.tl-outer { flex: 1; }
+.tl-hdr { display: flex; justify-content: space-between; font-size: 10px; color: var(--text-tertiary); margin-bottom: 2px; }
+.tl-bar { display: flex; border-radius: var(--radius-md); overflow: hidden; border: 0.5px solid var(--border-light); position: relative; }
+.tl-block { display: flex; align-items: center; justify-content: center; font-weight: 500; cursor: pointer; overflow: hidden; white-space: nowrap; padding: 0 3px; transition: opacity 0.12s; }
+.tl-block:hover { opacity: 0.82; }
+.now-line { position: absolute; top: 0; bottom: 0; width: 2px; background: #E24B4A; pointer-events: none; z-index: 10; }
+.now-lbl { position: absolute; top: -14px; font-size: 9px; color: #E24B4A; transform: translateX(-50%); white-space: nowrap; font-weight: 500; }
+.cov-bar-wrap { margin-bottom: 1.25rem; }
+.cov-bar-meta { display: flex; justify-content: space-between; font-size: 10px; color: var(--text-tertiary); margin-bottom: 3px; }
+.cov-bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; border: 0.5px solid var(--border-light); }
+.alert-box { padding: 10px 14px; border-radius: var(--radius-md); font-size: 13px; margin-bottom: 1rem; display: flex; gap: 10px; align-items: flex-start; }
+.a-ok { background: #EAF3DE; border: 0.5px solid #C0DD97; color: #27500A; }
+.a-err { background: #FCEBEB; border: 0.5px solid #F7C1C1; color: #A32D2D; }
+.a-info { background: #E6F1FB; border: 0.5px solid #B5D4F4; color: #185FA5; }
+.gap-pill { display: inline-block; background: rgba(163,45,45,0.12); color: #A32D2D; border-radius: 4px; padding: 1px 6px; margin: 2px 3px 2px 0; font-size: 11px; font-weight: 500; }
+.sum-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 8px; margin-top: 1rem; }
+.sum-card { background: var(--bg-secondary); border-radius: var(--radius-md); padding: 10px 12px; }
+.sum-lbl { font-size: 11px; color: var(--text-tertiary); margin-bottom: 2px; }
+.sum-val { font-size: 22px; font-weight: 500; }
+.sum-sub { font-size: 11px; color: var(--text-secondary); }
+.status-bar { padding: 10px 14px; border-radius: var(--radius-md); font-size: 13px; margin-bottom: 1rem; background: var(--bg-secondary); color: var(--text-secondary); border: 0.5px solid var(--border-light); line-height: 1.6; }
+.block-item { background: var(--bg-secondary); border-radius: var(--radius-md); padding: 10px 14px; margin-bottom: 6px; font-size: 13px; display: flex; justify-content: space-between; align-items: center; }
+.badge-now { background: #EAF3DE; color: #27500A; font-size: 11px; padding: 2px 7px; border-radius: var(--radius-sm); font-weight: 500; }
+.card { background: var(--bg-primary); border: 0.5px solid var(--border-light); border-radius: var(--radius-lg); padding: 1rem 1.25rem; margin-bottom: 1rem; }
+.card-title { font-size: 14px; font-weight: 500; margin-bottom: .75rem; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+.form-row.three { grid-template-columns: 1fr 1fr 1fr; }
+label { font-size: 12px; color: var(--text-secondary); display: block; margin-bottom: 3px; }
+select, input[type=time] { width: 100%; font-size: 13px; padding: 7px 9px; border: 0.5px solid var(--border-mid); border-radius: var(--radius-md); background: var(--bg-primary); color: var(--text-primary); font-family: var(--font); }
+.btn-row { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+.bp { padding: 8px 18px; font-size: 13px; border: 0.5px solid var(--border-strong); border-radius: var(--radius-md); cursor: pointer; background: var(--text-primary); color: var(--bg-primary); font-family: var(--font); }
+.bs { padding: 8px 18px; font-size: 13px; border: 0.5px solid var(--border-mid); border-radius: var(--radius-md); cursor: pointer; background: transparent; color: var(--text-primary); font-family: var(--font); }
+.bd { padding: 8px 18px; font-size: 13px; border: 0.5px solid #A32D2D; border-radius: var(--radius-md); cursor: pointer; background: #FCEBEB; color: #A32D2D; font-family: var(--font); }
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 200; align-items: center; justify-content: center; padding: 1rem; }
+.modal-overlay.open { display: flex; }
+.modal { background: var(--bg-primary); border-radius: var(--radius-lg); border: 0.5px solid var(--border-light); padding: 1.5rem; width: 100%; max-width: 440px; max-height: 90vh; overflow-y: auto; }
+.modal-title { font-size: 15px; font-weight: 500; margin-bottom: .75rem; }
+.modal-agent-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 0.5px solid var(--border-light); }
+.modal-agent-row:last-child { border-bottom: none; }
+.slot-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px,1fr)); gap: 5px; margin-top: .5rem; }
+.slot-item { border-radius: var(--radius-sm); padding: 5px 8px; font-size: 12px; }
+@media (max-width: 600px) {
+  .form-row.three { grid-template-columns: 1fr 1fr; }
+  .sum-grid { grid-template-columns: 1fr 1fr; }
+  body { padding: 0.75rem 0.5rem; }
+  .container { padding: 1rem; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="app-header">
+    <div><div class="app-title">Member Ops Schedule</div><div class="app-meta">Mending · Ebony (EST) · Marisa & Ky (CST) · Manager view in PST</div></div>
+    <div class="save-indicator"><div class="save-dot" id="save-dot"></div><span id="save-text">Loading...</span></div>
+  </div>
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('manager')">Manager view</button>
+    <button class="tab" onclick="switchTab('agent')">Agent view</button>
+    <button class="tab" onclick="requirePIN('builder')">Schedule Builder 🔒</button>
+    <button class="tab" onclick="requirePIN('edit')">Edit block 🔒</button>
+    <button class="tab" onclick="switchTab('coverage')">Coverage check</button>
+  </div>
+  <div id="view-manager" class="view active">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">
+      <button onclick="openCopyModal()" style="font-size:12px;padding:4px 12px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);background:transparent;cursor:pointer;color:var(--text-secondary);font-family:var(--font)">Copy from prev week</button>
+    </div>
+    <div class="day-select" id="mgr-days"></div>
+    <div id="mgr-alert"></div>
+    <div class="cov-bar-wrap" id="mgr-cov"></div>
+    <div class="legend" id="legend"></div>
+    <div id="mgr-timelines"></div>
+    <div class="sum-grid" id="mgr-summary"></div>
+  </div>
+  <div id="view-agent" class="view">
+    <div class="agent-select" id="agent-selector"></div>
+    <div class="day-select" id="agent-days"></div>
+    <div id="agent-tl" style="margin-bottom:10px"></div>
+    <div class="status-bar" id="agent-status"></div>
+    <div id="agent-blocks"></div>
+  </div>
+  <div id="view-edit" class="view">
+    <div class="alert-box a-info" style="margin-bottom:1rem"><span>Click any block on a timeline to pre-fill the form, or fill it out manually. Editing applies to the <strong id="edit-date-label">current week</strong>.</span></div>
+    <div class="card">
+      <div class="card-title">Edit a time block</div>
+      <div class="form-row three">
+        <div><label>Agent</label><select id="edit-agent"><option>Ebony</option><option>Marisa</option><option>Ky</option></select></div>
+        <div><label>Day</label><select id="edit-day" onchange="onEditDayChange()"></select></div>
+        <div><label>Activity</label><select id="edit-activity"></select></div>
+      </div>
+      <div class="form-row"><div><label>New start time</label><input type="time" id="edit-start"></div><div><label>New end time</label><input type="time" id="edit-end"></div></div>
+      <input type="hidden" id="edit-orig-start">
+      <input type="hidden" id="edit-week-offset">
+      <div id="edit-fri-row" style="display:none;margin-bottom:10px"><label>Friday week</label><select id="edit-fri-week"><option value="1">AH Week 1</option><option value="2">AH Week 2</option><option value="3">AH Week 3</option></select></div>
+      <div style="font-size:12px;color:var(--text-tertiary);margin-bottom:10px" id="edit-date-display"></div>
+      <div class="btn-row"><button class="bp" onclick="applyEdit()">Apply change</button><button class="bs" onclick="resetSchedule()">Reset to original</button></div>
+      <div id="edit-debug" style="margin-top:10px;font-size:11px;color:var(--text-tertiary);background:var(--bg-secondary);padding:8px;border-radius:6px;white-space:pre-wrap;display:none"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Add a new block</div>
+      <div class="form-row three">
+        <div><label>Agent</label><select id="add-agent"><option>Ebony</option><option>Marisa</option><option>Ky</option></select></div>
+        <div><label>Day</label><select id="add-day" onchange="onAddDayChange()"></select></div>
+        <div><label>Activity</label><select id="add-activity"></select></div>
+      </div>
+      <div class="form-row"><div><label>Start time</label><input type="time" id="add-start"></div><div><label>End time</label><input type="time" id="add-end"></div></div>
+      <div id="add-fri-row" style="display:none;margin-bottom:10px"><label>Friday week</label><select id="add-fri-week"><option value="1">AH Week 1</option><option value="2">AH Week 2</option><option value="3">AH Week 3</option></select></div>
+      <div style="font-size:12px;color:var(--text-tertiary);margin-bottom:10px" id="add-date-display"></div>
+      <div class="btn-row"><button class="bp" onclick="addBlock()">Add block</button></div>
+    </div>
+  </div>
+  <div id="view-coverage" class="view">
+    <div class="day-select" id="cov-days"></div>
+    <div id="cov-detail"></div>
+  </div>
+
+  <!-- SCHEDULE BUILDER -->
+  <div id="view-builder" class="view">
+
+    <!-- Section 1: Copy from date -->
+    <div class="card" style="margin-bottom:1rem">
+      <div class="card-title">Copy a day's schedule from another date</div>
+      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:1rem">Pick a source date, choose which agent(s), then pick one or more destination dates to copy to.</p>
+      <div class="form-row">
+        <div>
+          <label>Source date (copy from)</label>
+          <input type="date" id="copy-src-date" style="width:100%;font-size:13px;padding:7px 9px;border:0.5px solid var(--border-mid);border-radius:var(--radius-md);background:var(--bg-primary);color:var(--text-primary);font-family:var(--font)">
+        </div>
+        <div>
+          <label>Agent(s)</label>
+          <div id="copy-agent-checks" style="display:flex;gap:10px;flex-wrap:wrap;padding:8px 0">
+            <label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer"><input type="checkbox" id="copy-chk-Ebony" checked> Ebony</label>
+            <label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer"><input type="checkbox" id="copy-chk-Marisa" checked> Marisa</label>
+            <label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer"><input type="checkbox" id="copy-chk-Ky" checked> Ky</label>
+          </div>
+        </div>
+      </div>
+      <div style="margin-bottom:10px">
+        <label>Destination date(s) (copy to)</label>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:4px">
+          <input type="date" id="copy-dest-date" style="font-size:13px;padding:7px 9px;border:0.5px solid var(--border-mid);border-radius:var(--radius-md);background:var(--bg-primary);color:var(--text-primary);font-family:var(--font)">
+          <button class="bs" onclick="addCopyDest()">Add date</button>
+        </div>
+        <div id="copy-dest-list" style="display:flex;flex-wrap:wrap;gap:5px;margin-top:8px"></div>
+      </div>
+      <div id="copy-preview" style="font-size:12px;color:var(--text-tertiary);margin-bottom:10px"></div>
+      <div class="btn-row"><button class="bp" onclick="execCopyFromDate()">Copy schedule</button></div>
+    </div>
+
+    <!-- Section 2: Schedule Builder -->
+    <div class="card">
+      <div class="card-title">Build a schedule from scratch</div>
+      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:1rem">Choose an agent and date, then add blocks one by one. This replaces that day's entire schedule for that agent.</p>
+      <div class="form-row">
+        <div>
+          <label>Agent</label>
+          <select id="builder-agent" onchange="onBuilderChange()"><option>Ebony</option><option>Marisa</option><option>Ky</option></select>
+        </div>
+        <div>
+          <label>Date</label>
+          <input type="date" id="builder-date" onchange="onBuilderChange()" style="width:100%;font-size:13px;padding:7px 9px;border:0.5px solid var(--border-mid);border-radius:var(--radius-md);background:var(--bg-primary);color:var(--text-primary);font-family:var(--font)">
+        </div>
+      </div>
+
+      <!-- Current blocks being built -->
+      <div id="builder-blocks-wrap" style="margin-bottom:1rem">
+        <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:6px">Blocks <span id="builder-total-hrs" style="font-weight:400;color:var(--text-tertiary)"></span></div>
+        <div id="builder-blocks-list"></div>
+      </div>
+
+      <!-- Add a block -->
+      <div style="background:var(--bg-secondary);border-radius:var(--radius-md);padding:12px;margin-bottom:1rem">
+        <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:8px">Add a block</div>
+        <div class="form-row three">
+          <div><label>Activity</label><select id="builder-act"></select></div>
+          <div><label>Start</label><input type="time" id="builder-start"></div>
+          <div><label>End</label><input type="time" id="builder-end"></div>
+        </div>
+        <button class="bs" onclick="builderAddBlock()" style="margin-top:4px">+ Add block</button>
+      </div>
+
+      <!-- Mini timeline preview -->
+      <div id="builder-preview" style="margin-bottom:1rem"></div>
+
+      <div class="btn-row">
+        <button class="bp" onclick="builderSave()">Save this schedule</button>
+        <button class="bs" onclick="builderLoadExisting()">Load existing schedule</button>
+        <button class="bs" onclick="builderClear()">Clear all blocks</button>
+      </div>
+      <div id="builder-status" style="font-size:12px;color:var(--text-tertiary);margin-top:8px"></div>
+    </div>
+
+  </div>
+</div>
+
+<div class="modal-overlay" id="pin-modal">
+  <div class="modal" style="max-width:320px;text-align:center">
+    <div class="modal-title" style="margin-bottom:.5rem">Manager access required</div>
+    <p style="font-size:13px;color:var(--text-secondary);margin-bottom:1.25rem">Enter your PIN to edit the schedule.</p>
+    <input type="password" id="pin-input" maxlength="10" placeholder="PIN" style="text-align:center;font-size:20px;letter-spacing:6px;margin-bottom:1rem" onkeydown="if(event.key==='Enter')checkPIN()">
+    <div id="pin-error" style="font-size:12px;color:#A32D2D;min-height:16px;margin-bottom:.75rem"></div>
+    <div class="btn-row" style="justify-content:center">
+      <button class="bp" onclick="checkPIN()">Unlock</button>
+      <button class="bs" onclick="closePIN()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="redist-modal">
+  <div class="modal">
+    <div class="modal-title" id="redist-title">Redistribute time?</div>
+    <p style="font-size:13px;color:var(--text-secondary);margin-bottom:1rem" id="redist-desc"></p>
+    <div id="redist-agents"></div>
+    <div class="btn-row" style="margin-top:1rem"><button class="bp" onclick="confirmRedist()">Apply redistribution</button><button class="bs" onclick="closeRedist()">Skip, just save</button></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="multi-date-modal">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-title" id="mdate-title">Apply to more dates?</div>
+    <p style="font-size:13px;color:var(--text-secondary);margin-bottom:1rem" id="mdate-desc"></p>
+    <div style="margin-bottom:1rem">
+      <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:6px">Upcoming occurrences</div>
+      <div id="mdate-occurrences" style="display:flex;flex-direction:column;gap:5px"></div>
+    </div>
+    <div style="margin-bottom:1rem">
+      <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:6px">Or pick a specific date</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="date" id="mdate-picker" style="font-size:13px;padding:6px 8px;border:0.5px solid var(--border-mid);border-radius:var(--radius-md);background:var(--bg-primary);color:var(--text-primary);font-family:var(--font)">
+        <button class="bs" onclick="addPickedDate()" style="white-space:nowrap">Add date</button>
+      </div>
+      <div id="mdate-picked" style="display:flex;flex-wrap:wrap;gap:5px;margin-top:8px"></div>
+    </div>
+    <div class="btn-row">
+      <button class="bp" onclick="confirmMultiDate()">Apply to selected dates</button>
+      <button class="bs" onclick="closeMultiDate()">Skip</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="copy-modal">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-title">Copy from previous week</div>
+    <p style="font-size:13px;color:var(--text-secondary);margin-bottom:1rem" id="copy-modal-desc"></p>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:1rem" id="copy-day-options"></div>
+    <div class="btn-row">
+      <button class="bp" onclick="confirmCopy()">Copy</button>
+      <button class="bs" onclick="closeCopyModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="drag-confirm-modal">
+  <div class="modal" style="max-width:360px">
+    <div class="modal-title">Confirm schedule change</div>
+    <p style="font-size:13px;color:var(--text-secondary);margin-bottom:.75rem" id="drag-confirm-agent"></p>
+    <div style="background:var(--bg-secondary);border-radius:var(--radius-md);padding:12px 14px;margin-bottom:1rem">
+      <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px">
+        <span style="color:var(--text-tertiary)">From</span>
+        <span id="drag-confirm-from" style="font-weight:500"></span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:13px">
+        <span style="color:var(--text-tertiary)">To</span>
+        <span id="drag-confirm-to" style="font-weight:500;color:#185FA5"></span>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="bp" onclick="confirmDrag()">Confirm</button>
+      <button class="bs" onclick="cancelDrag()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="cov-modal">
+  <div class="modal">
+    <div class="modal-title" style="color:#A32D2D">Coverage gap detected</div>
+    <p style="font-size:13px;color:var(--text-secondary);margin-bottom:.75rem" id="cov-modal-desc"></p>
+    <div id="cov-modal-gaps" style="margin-bottom:1rem"></div>
+    <p style="font-size:12px;color:var(--text-tertiary);margin-bottom:1rem">No agent will be on inbound phones during these windows. Save anyway or go back and adjust?</p>
+    <div class="btn-row"><button class="bd" onclick="forceApply()">Save anyway</button><button class="bs" onclick="closeCovModal()">Go back and adjust</button></div>
+  </div>
+</div>
+
+<script>
+const COLORS={'On Phones':{bg:'#B5D4F4',text:'#0C447C'},'Outbound':{bg:'#9FE1CB',text:'#085041'},'Ticket Time':{bg:'#CECBF6',text:'#3C3489'},'Break 1':{bg:'#D3D1C7',text:'#444441'},'Break 2':{bg:'#D3D1C7',text:'#444441'},'Lunch':{bg:'#FAC775',text:'#633806'},'Weekly Sync':{bg:'#F4C0D1',text:'#72243E'},'Project Time':{bg:'#C0DD97',text:'#27500A'},'1:1':{bg:'#F5C4B3',text:'#712B13'},'All Hands':{bg:'#EF9F27',text:'#412402'}};
+const ACTIVITIES=Object.keys(COLORS);
+const DAYS=['Monday','Tuesday','Wednesday','Thursday','Friday'];
+const AGENTS=['Ebony','Marisa','Ky'];
+const ATZ={Ebony:'EST',Marisa:'CST',Ky:'CST'};
+
+const TO_EST={EST:0,CST:1,PST:3};
+const COV_S=540,COV_E=1080;
+const SK='mending-sched-v1',FK='mending-fri-v1',OK='mending-ob-v1',OOK='mending-ooo-v1';
+
+function t2m(t){const[h,m]=t.split(':').map(Number);return h*60+m;}
+function m2t(m){m=((m%1440)+1440)%1440;return`${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;}
+function m2d(m){m=((m%1440)+1440)%1440;const h=Math.floor(m/60),mn=m%60,ap=h>=12?'pm':'am',hh=h>12?h-12:(h===0?12:h);return`${hh}${mn?':'+String(mn).padStart(2,'0'):''}${ap}`;}
+
+const BASE={Ebony:{Monday:[['On Phones','09:00','11:00'],['Break 1','11:00','11:15'],['On Phones','11:15','13:15'],['Break 2','13:15','13:30'],['Outbound','13:30','15:00'],['Lunch','15:00','15:30'],['On Phones','15:30','16:15'],['Ticket Time','16:15','17:00']],Tuesday:[['On Phones','09:00','11:00'],['Break 1','11:00','11:15'],['On Phones','11:15','12:15'],['Weekly Sync','12:15','12:45'],['On Phones','12:45','13:00'],['Break 2','13:00','13:15'],['Outbound','13:15','14:45'],['Lunch','14:45','15:15'],['Project Time','15:15','16:15'],['Ticket Time','16:15','17:00']],Wednesday:[['On Phones','09:00','11:00'],['Break 1','11:00','11:15'],['On Phones','11:15','12:00'],['1:1','12:00','12:30'],['On Phones','12:30','13:15'],['Break 2','13:15','13:30'],['On Phones','13:30','14:00'],['Outbound','14:00','15:30'],['Lunch','15:30','16:00'],['On Phones','16:00','16:15'],['Ticket Time','16:15','17:00']],Thursday:[['On Phones','09:00','11:00'],['Break 1','11:00','11:15'],['On Phones','11:15','13:15'],['Break 2','13:15','13:30'],['On Phones','13:30','14:00'],['Outbound','14:00','15:30'],['Lunch','15:30','16:00'],['On Phones','16:00','16:15'],['Ticket Time','16:15','17:00']]},Marisa:{Monday:[['Ticket Time','08:30','09:15'],['On Phones','09:15','10:45'],['Break 1','10:45','11:00'],['On Phones','11:00','14:15'],['Lunch','14:15','14:45'],['Break 2','14:45','15:00'],['Outbound','15:00','16:30']],Tuesday:[['Ticket Time','08:30','09:15'],['On Phones','09:15','10:45'],['Break 1','10:45','11:00'],['On Phones','11:00','11:15'],['Weekly Sync','11:15','11:45'],['On Phones','11:45','12:30'],['1:1','12:30','13:00'],['On Phones','13:00','14:00'],['Break 2','14:00','14:15'],['Lunch','14:15','14:45'],['On Phones','14:45','15:00'],['Outbound','15:00','16:30']],Wednesday:[['Ticket Time','08:30','09:15'],['On Phones','09:15','10:45'],['Break 1','10:45','11:00'],['On Phones','11:00','14:00'],['Break 2','14:00','14:15'],['Lunch','14:15','14:45'],['On Phones','14:45','15:00'],['Outbound','15:00','16:30']],Thursday:[['Ticket Time','08:30','09:15'],['On Phones','09:15','10:45'],['Break 1','10:45','11:00'],['Project Time','11:00','12:00'],['On Phones','12:00','14:00'],['Break 2','14:00','14:15'],['Lunch','14:15','14:45'],['On Phones','14:45','15:00'],['Outbound','15:00','16:30']]},Ky:{Monday:[['Ticket Time','09:00','09:45'],['Outbound','09:45','11:15'],['On Phones','11:15','11:30'],['Lunch','11:30','12:00'],['Break 1','12:00','12:15'],['On Phones','12:15','15:00'],['Break 2','15:00','15:15'],['On Phones','15:15','17:00']],Tuesday:[['Ticket Time','09:00','09:45'],['Outbound','09:45','11:15'],['Weekly Sync','11:15','11:45'],['Lunch','11:45','12:15'],['Break 1','12:15','12:30'],['On Phones','12:30','14:45'],['Break 2','14:45','15:00'],['On Phones','15:00','17:00']],Wednesday:[['Ticket Time','09:00','09:45'],['Outbound','09:45','11:15'],['On Phones','11:15','11:30'],['Lunch','11:30','12:00'],['Break 1','12:00','12:15'],['Project Time','12:15','13:15'],['On Phones','13:15','15:00'],['Break 2','15:00','15:15'],['On Phones','15:15','17:00']],Thursday:[['Ticket Time','09:00','09:45'],['Outbound','09:45','11:15'],['On Phones','11:15','11:45'],['Lunch','11:45','12:15'],['Break 1','12:15','12:30'],['1:1','12:30','13:00'],['On Phones','13:00','15:00'],['Break 2','15:00','15:15'],['On Phones','15:15','17:00']]}};
+const BF={1:{Ebony:[['On Phones','09:00','11:00'],['Break 1','11:00','11:15'],['On Phones','11:15','13:15'],['Break 2','13:15','13:30'],['Lunch','13:30','14:00'],['On Phones','14:00','15:00'],['All Hands','15:00','15:45'],['On Phones','15:45','16:00'],['Ticket Time','16:00','17:00']],Marisa:[['Ticket Time','08:30','09:00'],['On Phones','09:00','10:15'],['Break 1','10:15','10:30'],['On Phones','10:30','13:15'],['Break 2','13:15','13:30'],['On Phones','13:30','14:45'],['Lunch','14:45','15:15'],['On Phones','15:15','16:00'],['Ticket Time','16:00','16:30']],Ky:[['Ticket Time','09:00','10:00'],['On Phones','10:00','11:30'],['Lunch','11:30','12:00'],['Break 1','12:00','12:15'],['On Phones','12:15','15:15'],['Break 2','15:15','15:30'],['On Phones','15:30','17:00']]},2:{Ebony:[['On Phones','09:00','11:00'],['Break 1','11:00','11:15'],['On Phones','11:15','13:15'],['Break 2','13:15','13:30'],['Lunch','13:30','14:00'],['On Phones','14:00','16:00'],['Ticket Time','16:00','17:00']],Marisa:[['Ticket Time','08:30','09:00'],['On Phones','09:00','10:15'],['Break 1','10:15','10:30'],['On Phones','10:30','13:15'],['Break 2','13:15','13:30'],['On Phones','13:30','14:00'],['All Hands','14:00','14:45'],['Lunch','14:45','15:15'],['On Phones','15:15','16:00'],['Ticket Time','16:00','16:30']],Ky:[['Ticket Time','09:00','10:00'],['On Phones','10:00','11:30'],['Lunch','11:30','12:00'],['Break 1','12:00','12:15'],['On Phones','12:15','15:15'],['Break 2','15:15','15:30'],['On Phones','15:30','17:00']]},3:{Ebony:[['On Phones','09:00','11:00'],['Break 1','11:00','11:15'],['On Phones','11:15','13:15'],['Break 2','13:15','13:30'],['Lunch','13:30','14:00'],['On Phones','14:00','16:00'],['Ticket Time','16:00','17:00']],Marisa:[['Ticket Time','08:30','09:00'],['On Phones','09:00','10:15'],['Break 1','10:15','10:30'],['On Phones','10:30','13:15'],['Break 2','13:15','13:30'],['On Phones','13:30','14:45'],['Lunch','14:45','15:15'],['On Phones','15:15','16:00'],['Ticket Time','16:00','16:30']],Ky:[['Ticket Time','09:00','10:00'],['On Phones','10:00','11:30'],['Lunch','11:30','12:00'],['Break 1','12:00','12:15'],['On Phones','12:15','14:00'],['All Hands','14:00','14:45'],['On Phones','14:45','15:15'],['Break 2','15:15','15:30'],['On Phones','15:30','17:00']]}};
+
+const ROT=[3,1,2];
+const AF=new Date('2026-04-18');
+function gfw(d){const diff=Math.round((d-AF)/(7*24*3600*1000));return ROT[((diff%3)+3)%3];}
+const td=new Date(),dtf=(5-td.getDay()+7)%7||7,tf=new Date(td);
+tf.setDate(td.getDate()+(td.getDay()===5?0:dtf));
+
+let sched=JSON.parse(JSON.stringify(BASE)),fsched=JSON.parse(JSON.stringify(BF));
+// noOB and ooo now keyed by ISO date string 'YYYY-MM-DD' instead of day name
+let noOB={};  // {dateStr: {Ebony:bool, Marisa:bool, Ky:bool}}
+let ooo={};   // {agent: {dateStr: true/false}}
+// schedOverrides: date-specific block overrides that take priority over base sched
+// {agent: {dateStr: [blocks]}} for weekdays
+// friOverrides: {fw: {agent: {dateStr: [blocks]}}} for Fridays
+let schedOverrides={};
+let friOverrides={1:{},2:{},3:{}};
+AGENTS.forEach(a=>{ooo[a]={};schedOverrides[a]={};[1,2,3].forEach(fw=>{friOverrides[fw][a]={};});});
+let pRed=null,pendingForce=null;
+
+// ── Week navigation ──────────────────────────────────────────
+// weekOffset: 0 = current week, 1 = next week, -1 = last week, etc.
+let weekOffset=0;
+
+function getMonday(offset){
+  const now=new Date();
+  const day=now.getDay(); // 0=Sun,1=Mon,...
+  const diffToMon=day===0?-6:1-day;
+  const mon=new Date(now);
+  mon.setDate(now.getDate()+diffToMon+(offset*7));
+  mon.setHours(0,0,0,0);
+  return mon;
+}
+
+function dateOfDay(dayName,offset){
+  // Returns Date object for the given day name in the given week offset
+  const mon=getMonday(offset);
+  const dayIdx={Monday:0,Tuesday:1,Wednesday:2,Thursday:3,Friday:4}[dayName]||0;
+  const d=new Date(mon);
+  d.setDate(mon.getDate()+dayIdx);
+  return d;
+}
+
+function toISO(d){
+  return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function fmtDayBtn(dayName,offset){
+  const d=dateOfDay(dayName,offset);
+  const mon=d.getMonth()+1,dt=d.getDate();
+  return`${dayName.slice(0,3)} ${mon}/${dt}`;
+}
+
+function isToday(dayName,offset){
+  const d=dateOfDay(dayName,offset);
+  const now=new Date();
+  return d.getDate()===now.getDate()&&d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();
+}
+
+// Compute Friday AH week from a specific date
+function getFriWeekForDate(d){
+  const diff=Math.round((d-AF)/(7*24*3600*1000));
+  return ROT[((diff%3)+3)%3];
+}
+
+// State: current selected day name + week offset (shared across views)
+let mDay='Monday',mFW=gfw(tf),aView='Ebony',aDay='Monday',aFW=gfw(tf),cDay='Monday',cFW=gfw(tf);
+
+const SOK='mending-overrides-v1',FOK='mending-fri-overrides-v1';
+function save(){
+  setSS('saving');
+  try{
+    localStorage.setItem(SK,JSON.stringify(sched));
+    localStorage.setItem(FK,JSON.stringify(fsched));
+    localStorage.setItem(OK,JSON.stringify(noOB));
+    localStorage.setItem(OOK,JSON.stringify(ooo));
+    localStorage.setItem(SOK,JSON.stringify(schedOverrides));
+    localStorage.setItem(FOK,JSON.stringify(friOverrides));
+    setSS('saved');
+    dbg(`save OK — overrides keys: ${Object.keys(schedOverrides).map(a=>a+':'+Object.keys(schedOverrides[a]||{}).join(',')).join(' | ')}`);
+  }catch(e){setSS('error');dbg('SAVE ERROR: '+e.message);}
+}
+function load(){
+  try{
+    const s=localStorage.getItem(SK),f=localStorage.getItem(FK),o=localStorage.getItem(OK),
+          oo=localStorage.getItem(OOK),so=localStorage.getItem(SOK),fo=localStorage.getItem(FOK);
+    if(s)sched=JSON.parse(s);
+    if(f)fsched=JSON.parse(f);
+    if(o)noOB=JSON.parse(o);
+    if(oo)ooo=JSON.parse(oo);
+    if(so)schedOverrides=JSON.parse(so);
+    if(fo)friOverrides=JSON.parse(fo);
+    setSS('saved');
+  }catch(e){setSS('saved');}
+  renderAll();
+}
+function setSS(st){
+  const dot=document.getElementById('save-dot'),txt=document.getElementById('save-text');
+  const m={loading:['#BA7517','Loading...'],saving:['#BA7517','Saving...'],saved:['#639922','All changes saved'],error:['#A32D2D','Save failed']};
+  const[c,l]=m[st]||m.saved;if(dot)dot.style.background=c;if(txt)txt.textContent=l;
+}
+
+// ── OOO helpers ──────────────────────────────────────────────
+const OOO_KEEP=['Break 1','Break 2','Lunch','Ticket Time','All Hands'];
+
+// Generate simplified schedule for an agent covering for OOO colleague(s)
+// Keeps their break/lunch/ticket blocks, replaces everything else with On Phones
+function applyOOOCoverage(blocks){
+  if(!blocks.length)return blocks;
+  const dayStart=Math.min(...blocks.map(b=>t2m(b[1])));
+  const dayEnd=Math.max(...blocks.map(b=>t2m(b[2])));
+  const kept=blocks.filter(b=>OOO_KEEP.includes(b[0])).sort((a,b)=>t2m(a[1])-t2m(b[1]));
+  const result=[];
+  let cursor=dayStart;
+  kept.forEach(b=>{
+    const bs=t2m(b[1]),be=t2m(b[2]);
+    if(cursor<bs)result.push(['On Phones',m2t(cursor),m2t(bs)]);
+    result.push(b);
+    cursor=be;
+  });
+  if(cursor<dayEnd)result.push(['On Phones',m2t(cursor),m2t(dayEnd)]);
+  return result;
+}
+
+function toggleOOO(agent,dateStr){
+  if(!managerUnlocked){requirePIN('manager');return;}
+  if(!ooo[agent])ooo[agent]={};
+  ooo[agent][dateStr]=!ooo[agent][dateStr];
+  save();renderAll();
+}
+
+function getRawBlocks(agent,day,fw){
+  const dateStr=toISO(dateOfDay(day,weekOffset));
+  if(day==='Friday'){
+    if(friOverrides[fw]&&friOverrides[fw][agent]&&friOverrides[fw][agent][dateStr]){
+      dbg(`getRawBlocks ${agent}/${day} → friOverride[${dateStr}] (${friOverrides[fw][agent][dateStr].length} blocks)`);
+      return JSON.parse(JSON.stringify(friOverrides[fw][agent][dateStr]));
+    }
+    return fsched[fw]&&fsched[fw][agent]?JSON.parse(JSON.stringify(fsched[fw][agent])):[];
+  }
+  if(schedOverrides[agent]&&schedOverrides[agent][dateStr]){
+    dbg(`getRawBlocks ${agent}/${day} → override[${dateStr}] (${schedOverrides[agent][dateStr].length} blocks)`);
+    return JSON.parse(JSON.stringify(schedOverrides[agent][dateStr]));
+  }
+  dbg(`getRawBlocks ${agent}/${day} → base sched (no override for ${dateStr})`);
+  return sched[agent]&&sched[agent][day]?JSON.parse(JSON.stringify(sched[agent][day])):[];
+}
+
+function gBlocks(agent,day,fw,tS,tF){
+  const dateStr=toISO(dateOfDay(day,weekOffset));
+  // Get base blocks — check date overrides first, then tS/tF test copies, then live sched
+  let blocks;
+  if(tS||tF){
+    blocks=day==='Friday'?(tF||fsched)[fw][agent]||[]:(tS||sched)[agent][day]||[];
+  } else {
+    blocks=getRawBlocks(agent,day,fw);
+  }
+  if(day!=='Friday'&&noOB[dateStr]&&noOB[dateStr][agent]){
+    blocks=mergeOP(blocks.map(x=>x[0]==='Outbound'?['On Phones',x[1],x[2]]:x));
+  }
+  if(ooo[agent]&&ooo[agent][dateStr]) return blocks;
+  const someoneOOO=AGENTS.filter(a=>a!==agent&&ooo[a]&&ooo[a][dateStr]).length>0;
+  if(someoneOOO) return applyOOOCoverage(blocks);
+  return blocks;
+}
+function mergeOP(b){
+  if(!b.length)return b;
+  const s=[...b].sort((a,x)=>t2m(a[1])-t2m(x[1]));
+  const m=[];let c=s[0];
+  for(let i=1;i<s.length;i++){const n=s[i];if(c[0]==='On Phones'&&n[0]==='On Phones'&&t2m(c[2])===t2m(n[1])){c=['On Phones',c[1],n[2]];}else{m.push(c);c=n;}}
+  m.push(c);return m;
+}
+function toggleAgentOB(agent,dateStr){
+  if(!managerUnlocked){requirePIN('manager');return;}
+  if(!noOB[dateStr]) noOB[dateStr]={};
+  noOB[dateStr][agent]=!noOB[dateStr][agent];
+  save();renderAll();
+}
+function getTZOffsetMins(tz){
+  const ianaMap={EST:'America/New_York',CST:'America/Chicago',PST:'America/Los_Angeles'};
+  const now=new Date();
+  function getOffset(zone){
+    const utc=now.getTime();
+    const parts=new Intl.DateTimeFormat('en-US',{timeZone:zone,hour:'numeric',minute:'numeric',hour12:false}).formatToParts(now);
+    const h=parseInt(parts.find(p=>p.type==='hour').value);
+    const m=parseInt(parts.find(p=>p.type==='minute').value);
+    const localMins=(h===24?0:h)*60+m;
+    const utcMins=new Date(utc).getUTCHours()*60+new Date(utc).getUTCMinutes();
+    let diff=localMins-utcMins;
+    if(diff>720)diff-=1440;if(diff<-720)diff+=1440;
+    return diff;
+  }
+  return getOffset(ianaMap[tz]||'America/Los_Angeles');
+}
+function toPST(blocks,agentTz){
+  const agentOff=getTZOffsetMins(agentTz);
+  const pstOff=getTZOffsetMins('PST');
+  const diff=pstOff-agentOff;
+  return blocks.map(b=>[b[0],m2t(t2m(b[1])+diff),m2t(t2m(b[2])+diff)]);
+}
+function nowFor(tz){
+  const ianaMap={EST:'America/New_York',CST:'America/Chicago',PST:'America/Los_Angeles'};
+  const zone=ianaMap[tz]||'America/Los_Angeles';
+  const parts=new Intl.DateTimeFormat('en-US',{timeZone:zone,hour:'numeric',minute:'numeric',hour12:false}).formatToParts(new Date());
+  const h=parseInt(parts.find(p=>p.type==='hour').value);
+  const m=parseInt(parts.find(p=>p.type==='minute').value);
+  return(h===24?0:h)*60+m;
+}
+
+function getCov(day,fw,tS,tF){
+  const sl=new Array(36).fill(0);
+  const estOff=getTZOffsetMins('EST');
+  AGENTS.forEach(a=>{
+    const aOff=getTZOffsetMins(ATZ[a]);
+    const toEstMins=estOff-aOff;
+    const bl=gBlocks(a,day,fw,tS,tF);
+    bl.forEach(b=>{if(b[0]!=='On Phones')return;const se=t2m(b[1])+toEstMins,ee=t2m(b[2])+toEstMins;for(let i=0;i<36;i++){const ss=COV_S+i*15,se2=ss+15;if(se<se2&&ee>ss)sl[i]++;}});
+  });
+  const g=[];let gs=null;
+  for(let i=0;i<36;i++){if(sl[i]===0){if(gs===null)gs=COV_S+i*15;}else{if(gs!==null){g.push({start:gs,end:COV_S+i*15});gs=null;}}}
+  if(gs!==null)g.push({start:gs,end:COV_E});
+  return{slots:sl,gaps:g};
+}
+function fmtGaps(g){return g.map(x=>`${m2d(x.start)}–${m2d(x.end)} EST`);}
+function renderCovBar(day,fw,barId,alertId){
+  const{slots,gaps}=getCov(day,fw);
+  if(alertId){const el=document.getElementById(alertId);if(gaps.length===0){el.innerHTML=`<div class="alert-box a-ok"><span>✓</span><div>Full inbound coverage 9am–6pm EST</div></div>`;}else{el.innerHTML=`<div class="alert-box a-err"><span>!</span><div><strong>${gaps.length} coverage gap${gaps.length>1?'s':''}</strong><div style="margin-top:4px">${fmtGaps(gaps).map(g=>`<span class="gap-pill">${g}</span>`).join('')}</div></div></div>`;}}
+  if(barId){const segs=slots.map((c,i)=>{const bg=c===0?'#FCEBEB':c===1?'#EAF3DE':'#B5D4F4';return`<div style="width:${100/36}%;background:${bg};height:100%" title="${m2d(COV_S+i*15)} EST — ${c} agent${c!==1?'s':''}"></div>`;}).join('');document.getElementById(barId).innerHTML=`<div class="cov-bar-meta"><span>Inbound coverage 9am–6pm EST</span><span>Red=gap · Green=1 agent · Blue=2+</span></div><div class="cov-bar">${segs}</div>`;}
+}
+
+function buildLegend(){document.getElementById('legend').innerHTML=Object.entries(COLORS).map(([k,v])=>{const short=SHORT_LABELS[k]||'';return`<div class="legend-item"><div class="legend-dot" style="background:${v.bg}"></div><span>${k}${short&&short!==k?` <span style="opacity:0.55;font-size:10px">(${short})</span>`:''}</span></div>`;}).join('');}
+function buildDayBtns(id,ad,afw,df,ff,navFn){
+  const mon=getMonday(weekOffset);
+  const fri=new Date(mon);fri.setDate(mon.getDate()+4);
+  const weekLabel=`${mon.toLocaleDateString('en-US',{month:'short',day:'numeric'})} – ${fri.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}`;
+  let h=`<div style="display:flex;align-items:center;gap:6px;width:100%;margin-bottom:8px">
+    <button onclick="${navFn}(-1)" style="padding:3px 10px;font-size:13px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);background:transparent;cursor:pointer;font-family:var(--font);color:var(--text-secondary)">‹</button>
+    <span style="font-size:12px;color:var(--text-tertiary);flex:1;text-align:center">${weekLabel}</span>
+    <button onclick="${navFn}(1)" style="padding:3px 10px;font-size:13px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);background:transparent;cursor:pointer;font-family:var(--font);color:var(--text-secondary)">›</button>
+  </div><div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">`;
+  h+=DAYS.map(d=>{
+    const today=isToday(d,weekOffset);
+    const active=d===ad;
+    return`<button class="day-btn ${active?'active':''}" onclick="${df}('${d}')" style="${today&&!active?'border-color:var(--border-mid);font-weight:500':''}">
+      ${fmtDayBtn(d,weekOffset)}${today?` <span style="display:inline-block;width:4px;height:4px;border-radius:50%;background:${active?'var(--bg-primary)':'#378ADD'};margin-left:2px;vertical-align:middle"></span>`:''}
+    </button>`;
+  }).join('');
+  if(ad==='Friday'){
+    const friDate=dateOfDay('Friday',weekOffset);
+    const autoFW=getFriWeekForDate(friDate);
+    h+=`<span class="fri-label">Week:</span><div class="fri-toggle">${[1,2,3].map(w=>`<button class="fri-btn ${w===afw?'active':''}" onclick="${ff}(${w})">AH${w}${w===autoFW?' ✓':''}</button>`).join('')}</div>`;
+  }
+  h+=`</div>`;
+  document.getElementById(id).innerHTML=h;
+}
+
+// ── Short labels for narrow blocks ───────────────────────────
+const SHORT_LABELS={
+  'On Phones':'📞','Outbound':'📤','Ticket Time':'🎫',
+  'Break 1':'B1','Break 2':'B2','Lunch':'🍽',
+  'Weekly Sync':'Sync','Project Time':'Proj','1:1':'1:1','All Hands':'AH'
+};
+
+// ── Drag state ───────────────────────────────────────────────
+let drag={active:false,agent:null,day:null,fw:null,blockIdx:null,mode:null,startX:0,barW:0,dayStart:0,dayEnd:0,origBlocks:null};
+
+function getLabel(name,widthPct){
+  if(widthPct>12) return name;           // full label
+  if(widthPct>5)  return SHORT_LABELS[name]||name.slice(0,3); // short
+  if(widthPct>2)  return (SHORT_LABELS[name]||'').slice(0,2); // tiny
+  return '';
+}
+
+function buildDragBar(blocks,agent,day,fw){
+  if(!blocks.length)return'';
+  const tz=ATZ[agent];
+  const bS=Math.min(...blocks.map(b=>t2m(b[1]))),bE=Math.max(...blocks.map(b=>t2m(b[2]))),tot=bE-bS;
+  const nowM=nowFor(tz),inDay=nowM>=bS&&nowM<=bE;
+  let html=`<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-tertiary);margin-bottom:2px"><span>${m2d(bS)}</span><span>${m2d(bE)}</span></div>`;
+  html+=`<div class="tl-bar drag-bar" id="dragbar-${agent}" style="height:44px;cursor:default">`;
+  blocks.forEach((b,i)=>{
+    const s=t2m(b[1]),e=t2m(b[2]),w=((e-s)/tot*100).toFixed(2);
+    const c=COLORS[b[0]]||{bg:'#D3D1C7',text:'#444441'};
+    const lbl=getLabel(b[0],parseFloat(w));
+    html+=`<div class="tl-block drag-block" data-agent="${agent}" data-day="${day}" data-fw="${fw}" data-idx="${i}"
+      style="width:${w}%;background:${c.bg};color:${c.text};font-size:10px;position:relative;cursor:grab;user-select:none"
+      title="${b[0]}: ${m2d(s)}–${m2d(e)} ${tz}">
+      <span style="pointer-events:none;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;max-width:100%;display:block;text-align:center">${lbl}</span>
+      <div class="drag-handle-right" data-agent="${agent}" data-day="${day}" data-fw="${fw}" data-idx="${i}"
+        style="position:absolute;right:0;top:0;bottom:0;width:8px;cursor:ew-resize;background:rgba(0,0,0,0.15);border-radius:0 4px 4px 0"></div>
+    </div>`;
+  });
+  if(inDay){const pct=((nowM-bS)/tot*100).toFixed(2);html+=`<div class="now-line" style="left:${pct}%"><span class="now-lbl">now</span></div>`;}
+  html+=`</div>`;
+  return html;
+}
+
+function buildPSTBar(blocks,agent,tz){
+  if(!blocks.length)return'';
+  const pst=toPST(blocks,tz);
+  const bS=Math.min(...pst.map(b=>t2m(b[1]))),bE=Math.max(...pst.map(b=>t2m(b[2]))),tot=bE-bS;
+  const nowM=nowFor('PST'),inDay=nowM>=bS&&nowM<=bE;
+  let html=`<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-tertiary);margin-bottom:2px"><span>${m2d(bS)}</span><span>${m2d(bE)}</span></div>`;
+  html+=`<div class="tl-bar" style="height:22px;opacity:0.6">`;
+  pst.forEach(b=>{
+    const s=t2m(b[1]),e=t2m(b[2]),w=((e-s)/tot*100).toFixed(2);
+    const c=COLORS[b[0]]||{bg:'#D3D1C7',text:'#444441'};
+    html+=`<div style="width:${w}%;background:${c.bg};display:flex;align-items:center;justify-content:center;font-size:9px;color:${c.text};overflow:hidden;white-space:nowrap;padding:0 2px"></div>`;
+  });
+  if(inDay){const pct=((nowM-bS)/tot*100).toFixed(2);html+=`<div class="now-line" style="left:${pct}%"></div>`;}
+  html+=`</div>`;
+  return html;
+}
+
+
+function renderDualTL(agent,day,fw,container){
+  const tz=ATZ[agent];
+  const displayBlocks=gBlocks(agent,day,fw); // transformed (OOO/noOB) — for visual
+  const rawBlocks=getRawBlocks(agent,day,fw); // raw saved — for drag handles
+  if(!displayBlocks.length){container.innerHTML='<p style="font-size:12px;color:var(--text-tertiary)">No blocks</p>';return;}
+  container.innerHTML=`<div class="dual-wrap">
+    <div class="tl-row"><div class="tl-tz" style="color:#185FA5">${tz}</div><div class="tl-outer" id="dragbar-wrap-${agent}">${buildDragBar(rawBlocks,agent,day,fw)}</div></div>
+    <div class="tl-row"><div class="tl-tz" style="color:var(--text-tertiary)">PST</div><div class="tl-outer">${buildPSTBar(displayBlocks,agent,tz)}</div></div>
+  </div>`;
+  container.querySelector('.drag-bar').title='Drag middle to move · Drag right edge to resize';
+}
+
+// ── Drag tooltip ─────────────────────────────────────────────
+let dragTooltip=null;
+function showDragTip(x,y,text){
+  if(!dragTooltip){dragTooltip=document.createElement('div');dragTooltip.style.cssText='position:fixed;background:var(--text-primary);color:var(--bg-primary);font-size:11px;padding:3px 8px;border-radius:4px;pointer-events:none;z-index:9999;white-space:nowrap;font-family:var(--font)';document.body.appendChild(dragTooltip);}
+  dragTooltip.textContent=text;dragTooltip.style.left=(x+12)+'px';dragTooltip.style.top=(y-28)+'px';dragTooltip.style.display='block';
+}
+function hideDragTip(){if(dragTooltip)dragTooltip.style.display='none';}
+
+// ── Drag handlers ─────────────────────────────────────────────
+document.addEventListener('mousedown',e=>{
+  const handle=e.target.closest('.drag-handle-right');
+  const block=e.target.closest('.drag-block');
+  if(!handle&&!block)return;
+  // Require PIN to drag
+  if(!managerUnlocked){
+    e.preventDefault();
+    document.getElementById('pin-input').value='';
+    document.getElementById('pin-error').textContent='';
+    document.getElementById('pin-modal').classList.add('open');
+    setTimeout(()=>document.getElementById('pin-input').focus(),100);
+    return;
+  }
+  const el=handle||block;
+  const agent=el.dataset.agent,day=el.dataset.day,fw=parseInt(el.dataset.fw),idx=parseInt(el.dataset.idx);
+  if(!agent)return;
+  e.preventDefault();
+  const bar=document.getElementById(`dragbar-${agent}`);
+  if(!bar)return;
+  const rect=bar.getBoundingClientRect();
+  // Always use raw saved blocks — data-idx in HTML matches sched order exactly
+  const rawBlocks=getRawBlocks(agent,day,fw);
+  if(!rawBlocks.length||idx>=rawBlocks.length)return;
+  drag={
+    active:true,agent,day,fw,blockIdx:idx,
+    mode:handle?'resize':'move',
+    startX:e.clientX,barW:rect.width,
+    barLeft:rect.left,
+    dayStart:Math.min(...rawBlocks.map(b=>t2m(b[1]))),
+    dayEnd:Math.max(...rawBlocks.map(b=>t2m(b[2]))),
+    origBlocks:JSON.parse(JSON.stringify(rawBlocks)),
+  };
+  document.body.style.cursor=handle?'ew-resize':'grabbing';
+  document.body.style.userSelect='none';
+});
+
+document.addEventListener('mousemove',e=>{
+  if(!drag.active)return;
+  const{agent,day,fw,blockIdx,mode,barW,barLeft,dayStart,dayEnd,origBlocks}=drag;
+  const totalMins=dayEnd-dayStart;
+  const pxPerMin=barW/totalMins;
+  const dxMins=Math.round((e.clientX-drag.startX)/pxPerMin/15)*15; // snap to 15
+  const blocks=JSON.parse(JSON.stringify(origBlocks));
+  const b=blocks[blockIdx];
+  const s=t2m(b[1]),en=t2m(b[2]),dur=en-s;
+
+  if(mode==='resize'){
+    // Extend/shrink right edge — push next block only for resize
+    const newEnd=Math.max(s+15,en+dxMins);
+    const delta=newEnd-en;
+    b[2]=m2t(newEnd);
+    if(delta!==0&&blockIdx+1<blocks.length){
+      const nb=blocks[blockIdx+1];
+      const ns=t2m(nb[1]),ne=t2m(nb[2]);
+      const newNs=Math.min(ns+delta,ne-15);
+      nb[1]=m2t(newNs);
+      if(t2m(nb[2])<=t2m(nb[1]))nb[2]=m2t(t2m(nb[1])+15);
+    }
+    showDragTip(e.clientX,e.clientY,`${b[0]}: ${m2d(s)} – ${m2d(newEnd)}`);
+  } else {
+    // Move block freely — no pushing. Reconstruct timeline:
+    // 1. Remove the dragged block from its original position
+    // 2. Fill the vacated slot with On Phones
+    // 3. Drop the block at the new position (overlapping whatever is there)
+    // 4. Merge any adjacent On Phones blocks
+    const newS=Math.max(dayStart,Math.min(dayEnd-dur,s+dxMins));
+    const newE=newS+dur;
+
+    // Start from original blocks minus the dragged one
+    const others=origBlocks.filter((_,i)=>i!==blockIdx);
+
+    // Fill the original slot with On Phones if vacated area not covered
+    others.push(['On Phones',m2t(s),m2t(en)]);
+
+    // Sort all blocks
+    others.sort((a,b)=>t2m(a[1])-t2m(b[1]));
+
+    // Clip any block that overlaps the new position of the dragged block
+    const clipped=[];
+    others.forEach(ob=>{
+      const os=t2m(ob[1]),oe=t2m(ob[2]);
+      // Fully inside dragged block — remove
+      if(os>=newS&&oe<=newE)return;
+      // Overlaps left side — trim right
+      if(os<newS&&oe>newS&&oe<=newE){clipped.push([ob[0],ob[1],m2t(newS)]);return;}
+      // Overlaps right side — trim left
+      if(os>=newS&&os<newE&&oe>newE){clipped.push([ob[0],m2t(newE),ob[2]]);return;}
+      // Spans entire dragged block — split into two
+      if(os<newS&&oe>newE){
+        clipped.push([ob[0],ob[1],m2t(newS)]);
+        clipped.push([ob[0],m2t(newE),ob[2]]);
+        return;
+      }
+      clipped.push(ob);
+    });
+
+    // Add the dragged block at new position
+    clipped.push([b[0],m2t(newS),m2t(newE)]);
+    clipped.sort((a,b)=>t2m(a[1])-t2m(b[1]));
+
+    // Merge adjacent On Phones blocks
+    const merged=mergeOP(clipped);
+
+    // Remove any zero-duration blocks
+    const final=merged.filter(bl=>t2m(bl[2])>t2m(bl[1]));
+
+    // Replace blocks array contents
+    blocks.length=0;
+    final.forEach(bl=>blocks.push(bl));
+    // Restore blockIdx reference to dragged block's new position
+    drag._newBlockIdx=blocks.findIndex(bl=>bl[0]===b[0]&&bl[1]===m2t(newS)&&bl[2]===m2t(newE));
+
+    showDragTip(e.clientX,e.clientY,`${b[0]}: ${m2d(newS)} → ${m2d(newE)}`);
+  }
+
+  // Live re-render drag bar only
+  const wrap=document.getElementById(`dragbar-wrap-${agent}`);
+  if(wrap){wrap.innerHTML=buildDragBar(blocks,agent,day,fw);}
+  drag._previewBlocks=JSON.parse(JSON.stringify(blocks));
+});
+
+document.addEventListener('mouseup',e=>{
+  if(!drag.active)return;
+  document.body.style.cursor='';document.body.style.userSelect='';hideDragTip();
+  const{agent,day,fw,blockIdx,_previewBlocks,origBlocks,mode}=drag;
+  drag.active=false;
+  if(!_previewBlocks){drag={active:false};return;}
+
+  // Check if anything actually changed by comparing block arrays
+  const origStr=JSON.stringify(origBlocks.map(b=>[b[0],b[1],b[2]]));
+  const prevStr=JSON.stringify(_previewBlocks.map(b=>[b[0],b[1],b[2]]));
+  if(origStr===prevStr){drag={active:false};return;}
+
+  // For confirm modal: find the dragged block in preview (by activity + new position)
+  const origBlock=origBlocks[blockIdx];
+  const tz=ATZ[agent];
+
+  // For move: show original position → new position of the dragged block
+  // For resize: find same activity block that changed
+  let fromText,toText;
+  if(mode==='move'){
+    // Find the dragged block's new position in preview
+    const newBlock=_previewBlocks.find(b=>b[0]===origBlock[0]&&(b[1]!==origBlock[1]||b[2]!==origBlock[2]));
+    fromText=`${origBlock[0]}: ${m2d(t2m(origBlock[1]))}–${m2d(t2m(origBlock[2]))} ${tz}`;
+    toText=newBlock?`${newBlock[0]}: ${m2d(t2m(newBlock[1]))}–${m2d(t2m(newBlock[2]))} ${tz}`:'(moved)';
+  } else {
+    const prev=_previewBlocks[blockIdx]||_previewBlocks[0];
+    fromText=`${origBlock[0]}: ${m2d(t2m(origBlock[1]))}–${m2d(t2m(origBlock[2]))} ${tz}`;
+    toText=prev?`${prev[0]}: ${m2d(t2m(prev[1]))}–${m2d(t2m(prev[2]))} ${tz}`:'(resized)';
+  }
+
+  document.getElementById('drag-confirm-agent').textContent=`${agent} · ${day}${day==='Friday'?' (AH Week '+fw+')':''}`;
+  document.getElementById('drag-confirm-from').textContent=fromText;
+  document.getElementById('drag-confirm-to').textContent=toText;
+
+  drag._pendingBlocks=_previewBlocks;
+  drag._pendingAgent=agent;
+  drag._pendingDay=day;
+  drag._pendingFw=fw;
+  drag._origBlocks=origBlocks;
+  document.getElementById('drag-confirm-modal').classList.add('open');
+  drag={active:false};
+});
+
+// Touch support
+document.addEventListener('touchstart',e=>{
+  const t=e.touches[0];
+  const fake=new MouseEvent('mousedown',{clientX:t.clientX,clientY:t.clientY,bubbles:true});
+  e.target.dispatchEvent(fake);
+},{passive:true});
+document.addEventListener('touchmove',e=>{
+  const t=e.touches[0];
+  const fake=new MouseEvent('mousemove',{clientX:t.clientX,clientY:t.clientY,bubbles:true});
+  document.dispatchEvent(fake);
+  e.preventDefault();
+},{passive:false});
+document.addEventListener('touchend',e=>{
+  document.dispatchEvent(new MouseEvent('mouseup',{bubbles:true}));
+});
+
+function confirmDrag(){
+  document.getElementById('drag-confirm-modal').classList.remove('open');
+  const{_pendingBlocks,_pendingAgent,_pendingDay,_pendingFw}=drag;
+  if(!_pendingBlocks)return;
+
+  // Coverage check
+  const testS=JSON.parse(JSON.stringify(sched));
+  const testF=JSON.parse(JSON.stringify(fsched));
+  if(_pendingDay==='Friday')testF[_pendingFw][_pendingAgent]=_pendingBlocks;
+  else testS[_pendingAgent][_pendingDay]=_pendingBlocks;
+  const{gaps}=getCov(_pendingDay,_pendingFw,testS,testF);
+
+  if(gaps.length>0){
+    document.getElementById('cov-modal-desc').textContent=`This change would create inbound coverage gaps on ${_pendingDay}${_pendingDay==='Friday'?' (AH Week '+_pendingFw+')':''}:`;
+    document.getElementById('cov-modal-gaps').innerHTML=fmtGaps(gaps).map(g=>`<span class="gap-pill">${g}</span>`).join('');
+    pendingForce={dragBlocks:_pendingBlocks,agent:_pendingAgent,day:_pendingDay,fw:_pendingFw};
+    document.getElementById('cov-modal').classList.add('open');
+  } else {
+    applyDragCommit(_pendingAgent,_pendingDay,_pendingFw,_pendingBlocks);
+  }
+  drag={active:false};
+}
+
+function cancelDrag(){
+  document.getElementById('drag-confirm-modal').classList.remove('open');
+  // Re-render to restore original state visually
+  renderManager();
   drag={active:false};
 }
 
@@ -1020,9 +1928,19 @@ function onAddDayChange(){
   updateEditDateDisplay();
 }
 function populateSelects(){
-  ['edit-activity','add-activity'].forEach(id=>{document.getElementById(id).innerHTML=ACTIVITIES.map(a=>`<option>${a}</option>`).join('');});
+  ['edit-activity','add-activity','builder-act'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.innerHTML=ACTIVITIES.map(a=>`<option>${a}</option>`).join('');
+  });
   ['edit-day','add-day'].forEach(id=>{document.getElementById(id).innerHTML=DAYS.map(d=>`<option>${d}</option>`).join('');});
 }
+function dbg(msg){
+  const el=document.getElementById('edit-debug');
+  if(!el) return;
+  el.style.display='block';
+  el.textContent=(el.textContent?el.textContent+'\n':'')+new Date().toLocaleTimeString()+': '+msg;
+}
+
 function applyEdit(){
   const agent=document.getElementById('edit-agent').value;
   const day=document.getElementById('edit-day').value;
@@ -1031,39 +1949,38 @@ function applyEdit(){
   const ne=document.getElementById('edit-end').value;
   const origStart=document.getElementById('edit-orig-start').value;
   const editWO=parseInt(document.getElementById('edit-week-offset').value);
+  dbg(`applyEdit: agent=${agent} day=${day} act=${act} ns=${ns} ne=${ne} origStart=${origStart} editWO=${editWO} weekOffset=${weekOffset}`);
   if(!ns||!ne){alert('Please fill in start and end times.');return;}
   const fw=parseInt(document.getElementById('edit-fri-week').value);
 
-  // Temporarily set weekOffset to the edit's week so getRawBlocks resolves correctly
   const savedWO=weekOffset;
   weekOffset=isNaN(editWO)?savedWO:editWO;
+  dbg(`weekOffset set to ${weekOffset}`);
 
-  // Get current blocks for this specific date (respects overrides)
   const currentBlocks=JSON.parse(JSON.stringify(getRawBlocks(agent,day,fw)));
+  dbg(`currentBlocks (${currentBlocks.length}): ${JSON.stringify(currentBlocks.map(b=>b[0]+' '+b[1]+'-'+b[2]))}`);
 
-  // Find the block to edit
   let idx=origStart?currentBlocks.findIndex(b=>b[0]===act&&b[1]===origStart):-1;
   if(idx===-1) idx=currentBlocks.findIndex(b=>b[0]===act);
+  dbg(`idx=${idx}`);
   if(idx===-1){
     weekOffset=savedWO;
     alert('Block not found. Try adding it instead.');
     return;
   }
 
-  // Build test copy to check coverage
   const testBlocks=JSON.parse(JSON.stringify(currentBlocks));
   const oldD=t2m(testBlocks[idx][2])-t2m(testBlocks[idx][1]);
   testBlocks[idx]=[act,ns,ne];
   const delta=t2m(ne)-t2m(ns)-oldD;
 
-  // Build test sched copies for coverage check
   const tS=JSON.parse(JSON.stringify(sched));
   const tF=JSON.parse(JSON.stringify(fsched));
   if(day==='Friday') tF[fw][agent]=testBlocks;
   else tS[agent][day]=testBlocks;
 
   const{gaps}=getCov(day,fw,tS,tF);
-  weekOffset=savedWO; // restore
+  weekOffset=savedWO;
 
   if(gaps.length>0){
     document.getElementById('cov-modal-desc').textContent=`Changing ${agent}'s ${act} on ${day}${day==='Friday'?' (AH Week '+fw+')':''} would create inbound coverage gaps:`;
@@ -1079,6 +1996,7 @@ function commitEdit(agent,day,act,ns,ne,fw,delta,origStart,editWO){
   const savedWO=weekOffset;
   weekOffset=isNaN(editWO)?savedWO:(editWO||0);
   const dateStr=toISO(dateOfDay(day,weekOffset));
+  dbg(`commitEdit: dateStr=${dateStr} weekOffset=${weekOffset} editWO=${editWO}`);
   const blocks=JSON.parse(JSON.stringify(getRawBlocks(agent,day,fw)));
   let idx=origStart?blocks.findIndex(b=>b[0]===act&&b[1]===origStart):-1;
   if(idx===-1) idx=blocks.findIndex(b=>b[0]===act);
@@ -1087,13 +2005,15 @@ function commitEdit(agent,day,act,ns,ne,fw,delta,origStart,editWO){
   if(day==='Friday'){
     if(!friOverrides[fw][agent]) friOverrides[fw][agent]={};
     friOverrides[fw][agent][dateStr]=blocks;
+    dbg(`Saved to friOverrides[${fw}][${agent}][${dateStr}]`);
   } else {
     if(!schedOverrides[agent]) schedOverrides[agent]={};
     schedOverrides[agent][dateStr]=blocks;
+    dbg(`Saved to schedOverrides[${agent}][${dateStr}] = ${blocks.length} blocks`);
   }
   weekOffset=savedWO;
   if(delta!==0) showRedistModal(agent,day,act,delta,fw);
-  else{save();renderAll();openMultiDateModal(agent,day,fw,blocks);}
+  else{save();dbg('save() called');renderAll();dbg('renderAll() called');openMultiDateModal(agent,day,fw,blocks);}
 }
 function addBlock(){
   const agent=document.getElementById('add-agent').value,day=document.getElementById('add-day').value,act=document.getElementById('add-activity').value;
@@ -1230,8 +2150,10 @@ function resetSchedule(){
 const MANAGER_PIN='0097';
 let managerUnlocked=false;
 
+let pinTargetTab='edit';
 function requirePIN(tab){
   if(managerUnlocked){switchTab(tab);return;}
+  pinTargetTab=tab;
   document.getElementById('pin-input').value='';
   document.getElementById('pin-error').textContent='';
   document.getElementById('pin-modal').classList.add('open');
@@ -1242,9 +2164,12 @@ function checkPIN(){
   if(entered===MANAGER_PIN){
     managerUnlocked=true;
     closePIN();
-    switchTab('edit');
-    // Update tab label to show unlocked
-    document.querySelector('.tab[onclick="requirePIN(\'edit\')"]').textContent='Edit schedule ✓';
+    switchTab(pinTargetTab);
+    // Update locked tab labels to show unlocked
+    ['edit','builder'].forEach(t=>{
+      const el=document.querySelector(`.tab[onclick="requirePIN('${t}')"]`);
+      if(el) el.textContent=el.textContent.replace('🔒','✓');
+    });
   }else{
     document.getElementById('pin-error').textContent='Incorrect PIN. Try again.';
     document.getElementById('pin-input').value='';
@@ -1252,6 +2177,209 @@ function checkPIN(){
   }
 }
 function closePIN(){document.getElementById('pin-modal').classList.remove('open');}
+
+// ── Schedule Builder ─────────────────────────────────────────
+let builderBlocks = []; // working set of blocks being built
+
+function onBuilderChange(){
+  const agent=document.getElementById('builder-agent').value;
+  const date=document.getElementById('builder-date').value;
+  if(!date) return;
+  const disp=new Date(date+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
+  document.getElementById('builder-status').textContent=`Editing: ${agent} · ${disp}`;
+  renderBuilderBlocks();
+}
+
+function builderAddBlock(){
+  const act=document.getElementById('builder-act').value;
+  const s=document.getElementById('builder-start').value;
+  const e=document.getElementById('builder-end').value;
+  if(!s||!e){alert('Please enter start and end times.');return;}
+  if(t2m(e)<=t2m(s)){alert('End time must be after start time.');return;}
+  builderBlocks.push([act,s,e]);
+  builderBlocks.sort((a,b)=>t2m(a[1])-t2m(b[1]));
+  document.getElementById('builder-start').value='';
+  document.getElementById('builder-end').value='';
+  renderBuilderBlocks();
+}
+
+function builderRemoveBlock(i){
+  builderBlocks.splice(i,1);
+  renderBuilderBlocks();
+}
+
+function renderBuilderBlocks(){
+  const list=document.getElementById('builder-blocks-list');
+  const preview=document.getElementById('builder-preview');
+  const agent=document.getElementById('builder-agent').value;
+  const totalMins=builderBlocks.reduce((s,b)=>s+(t2m(b[2])-t2m(b[1])),0);
+  document.getElementById('builder-total-hrs').textContent=totalMins?`— ${(totalMins/60).toFixed(1)}h total`:'';
+
+  if(!builderBlocks.length){
+    list.innerHTML='<p style="font-size:12px;color:var(--text-tertiary)">No blocks yet. Add one above.</p>';
+    preview.innerHTML='';
+    return;
+  }
+
+  list.innerHTML=builderBlocks.map((b,i)=>{
+    const c=COLORS[b[0]]||{bg:'#D3D1C7',text:'#444441'};
+    const dur=t2m(b[2])-t2m(b[1]);
+    const tz=ATZ[agent];
+    return`<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:var(--radius-md);background:var(--bg-secondary);margin-bottom:5px">
+      <div style="width:12px;height:12px;border-radius:2px;background:${c.bg};flex-shrink:0"></div>
+      <div style="flex:1;font-size:13px"><strong>${b[0]}</strong> <span style="color:var(--text-tertiary)">${m2d(t2m(b[1]))}–${m2d(t2m(b[2]))} ${tz} (${dur}m)</span></div>
+      <button onclick="builderRemoveBlock(${i})" style="font-size:12px;padding:2px 8px;border:0.5px solid var(--border-mid);border-radius:var(--radius-sm);cursor:pointer;background:transparent;color:var(--text-secondary);font-family:var(--font)">×</button>
+    </div>`;
+  }).join('');
+
+  // Mini timeline
+  const bS=Math.min(...builderBlocks.map(b=>t2m(b[1])));
+  const bE=Math.max(...builderBlocks.map(b=>t2m(b[2])));
+  const tot=bE-bS;
+  let barHTML=`<div style="font-size:11px;color:var(--text-tertiary);margin-bottom:3px;display:flex;justify-content:space-between"><span>${m2d(bS)} <span style="opacity:0.6">${ATZ[agent]}</span></span><span>${m2d(bE)}</span></div>`;
+  barHTML+=`<div style="display:flex;border-radius:var(--radius-md);overflow:hidden;border:0.5px solid var(--border-light);height:32px">`;
+  builderBlocks.forEach(b=>{
+    const w=((t2m(b[2])-t2m(b[1]))/tot*100).toFixed(2);
+    const c=COLORS[b[0]]||{bg:'#D3D1C7',text:'#444441'};
+    const lbl=getLabel(b[0],parseFloat(w));
+    barHTML+=`<div style="width:${w}%;background:${c.bg};color:${c.text};display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:500;overflow:hidden;white-space:nowrap;padding:0 2px">${lbl}</div>`;
+  });
+  barHTML+=`</div>`;
+  preview.innerHTML=barHTML;
+}
+
+function builderLoadExisting(){
+  const agent=document.getElementById('builder-agent').value;
+  const date=document.getElementById('builder-date').value;
+  if(!date){alert('Please select a date first.');return;}
+  const d=new Date(date+'T12:00:00');
+  const dayName=d.toLocaleDateString('en-US',{weekday:'long'});
+  if(!DAYS.includes(dayName)){alert('Please select a weekday (Mon–Fri).');return;}
+  // Temporarily set weekOffset to match this date
+  const savedWO=weekOffset;
+  // Find the weekOffset for this date
+  for(let w=-52;w<=52;w++){
+    if(toISO(dateOfDay(dayName,w))===date){weekOffset=w;break;}
+  }
+  const fw=dayName==='Friday'?getFriWeekForDate(d):1;
+  builderBlocks=JSON.parse(JSON.stringify(getRawBlocks(agent,dayName,fw)));
+  weekOffset=savedWO;
+  renderBuilderBlocks();
+  document.getElementById('builder-status').textContent=`Loaded ${agent}'s schedule for ${new Date(date+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'})}`;
+}
+
+function builderSave(){
+  const agent=document.getElementById('builder-agent').value;
+  const date=document.getElementById('builder-date').value;
+  if(!date){alert('Please select a date.');return;}
+  if(!builderBlocks.length){alert('Please add at least one block.');return;}
+  const d=new Date(date+'T12:00:00');
+  const dayName=d.toLocaleDateString('en-US',{weekday:'long'});
+  if(!DAYS.includes(dayName)){alert('Please select a weekday (Mon–Fri).');return;}
+  const fw=dayName==='Friday'?getFriWeekForDate(d):1;
+  const clean=JSON.parse(JSON.stringify(builderBlocks)).filter(b=>t2m(b[2])>t2m(b[1])).sort((a,b)=>t2m(a[1])-t2m(b[1]));
+  if(dayName==='Friday'){
+    if(!friOverrides[fw][agent]) friOverrides[fw][agent]={};
+    friOverrides[fw][agent][date]=clean;
+  } else {
+    if(!schedOverrides[agent]) schedOverrides[agent]={};
+    schedOverrides[agent][date]=clean;
+  }
+  save();renderAll();
+  const disp=new Date(date+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'});
+  document.getElementById('builder-status').textContent=`✓ Saved ${agent}'s schedule for ${disp} (${clean.length} blocks)`;
+  dbg(`builderSave: ${agent} ${date} → ${clean.length} blocks`);
+}
+
+function builderClear(){
+  builderBlocks=[];
+  renderBuilderBlocks();
+}
+
+// ── Copy from date ───────────────────────────────────────────
+let copyDestDates=[];
+
+function addCopyDest(){
+  const val=document.getElementById('copy-dest-date').value;
+  if(!val)return;
+  if(copyDestDates.includes(val)){document.getElementById('copy-dest-date').value='';return;}
+  copyDestDates.push(val);
+  renderCopyDestList();
+  document.getElementById('copy-dest-date').value='';
+}
+
+function removeCopyDest(d){
+  copyDestDates=copyDestDates.filter(x=>x!==d);
+  renderCopyDestList();
+}
+
+function renderCopyDestList(){
+  document.getElementById('copy-dest-list').innerHTML=copyDestDates.map(d=>{
+    const disp=new Date(d+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+    return`<span style="font-size:12px;background:#E6F1FB;color:#185FA5;border:0.5px solid #B5D4F4;padding:2px 8px;border-radius:20px;display:inline-flex;align-items:center;gap:5px">
+      ${disp} <span onclick="removeCopyDest('${d}')" style="cursor:pointer;font-size:14px;line-height:1">×</span>
+    </span>`;
+  }).join('');
+  // Update preview
+  const src=document.getElementById('copy-src-date').value;
+  const agents=AGENTS.filter(a=>document.getElementById(`copy-chk-${a}`)?.checked);
+  const el=document.getElementById('copy-preview');
+  if(src&&copyDestDates.length&&agents.length){
+    const srcDisp=new Date(src+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+    el.textContent=`Will copy ${agents.join(', ')}'s schedule from ${srcDisp} to ${copyDestDates.length} date${copyDestDates.length>1?'s':''}`;
+  } else {
+    el.textContent='';
+  }
+}
+
+function execCopyFromDate(){
+  const src=document.getElementById('copy-src-date').value;
+  if(!src){alert('Please select a source date.');return;}
+  if(!copyDestDates.length){alert('Please add at least one destination date.');return;}
+  const agents=AGENTS.filter(a=>document.getElementById(`copy-chk-${a}`)?.checked);
+  if(!agents.length){alert('Please select at least one agent.');return;}
+
+  const srcDate=new Date(src+'T12:00:00');
+  const srcDay=srcDate.toLocaleDateString('en-US',{weekday:'long'});
+  if(!DAYS.includes(srcDay)){alert('Source date must be a weekday (Mon–Fri).');return;}
+  const srcFW=srcDay==='Friday'?getFriWeekForDate(srcDate):1;
+
+  // Get source blocks for each agent from the src date
+  const savedWO=weekOffset;
+  let copied=0;
+  agents.forEach(agent=>{
+    // Find weekOffset for src date
+    for(let w=-52;w<=52;w++){
+      if(toISO(dateOfDay(srcDay,w))===src){weekOffset=w;break;}
+    }
+    const srcBlocks=JSON.parse(JSON.stringify(getRawBlocks(agent,srcDay,srcFW)));
+    weekOffset=savedWO;
+
+    copyDestDates.forEach(dest=>{
+      const destDate=new Date(dest+'T12:00:00');
+      const destDay=destDate.toLocaleDateString('en-US',{weekday:'long'});
+      if(!DAYS.includes(destDay)) return; // skip non-weekdays
+      const destFW=destDay==='Friday'?getFriWeekForDate(destDate):1;
+      const clean=JSON.parse(JSON.stringify(srcBlocks));
+      if(destDay==='Friday'){
+        if(!friOverrides[destFW][agent]) friOverrides[destFW][agent]={};
+        friOverrides[destFW][agent][dest]=clean;
+      } else {
+        if(!schedOverrides[agent]) schedOverrides[agent]={};
+        schedOverrides[agent][dest]=clean;
+      }
+      copied++;
+    });
+  });
+
+  weekOffset=savedWO;
+  save();renderAll();
+  const srcDisp=new Date(src+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+  alert(`✓ Copied ${agents.join(', ')}'s schedule from ${srcDisp} to ${copied} date entries.`);
+  copyDestDates=[];
+  renderCopyDestList();
+  dbg(`execCopyFromDate: src=${src} agents=${agents.join(',')} dests=${copyDestDates.length} copied=${copied}`);
+}
 
 function renderAll(){renderManager();renderAgent();if(document.getElementById('view-coverage').classList.contains('active'))renderCovTab();}
 
@@ -1368,10 +2496,16 @@ function switchTab(tab){
   document.getElementById(`view-${tab}`).classList.add('active');
   if(tab==='coverage')renderCovTab();
   if(tab==='edit'){
-    // Sync weekOffset into form if not already set by clickBlock
     if(!document.getElementById('edit-week-offset').value)
       document.getElementById('edit-week-offset').value=weekOffset;
     updateEditDateDisplay();
+  }
+  if(tab==='builder'){
+    if(!document.getElementById('builder-date').value)
+      document.getElementById('builder-date').value=toISO(new Date());
+    if(!document.getElementById('copy-src-date').value)
+      document.getElementById('copy-src-date').value=toISO(new Date());
+    onBuilderChange();
   }
 }
 
