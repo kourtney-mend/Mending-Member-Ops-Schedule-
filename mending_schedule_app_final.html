@@ -263,6 +263,8 @@ select, input[type=time] { width: 100%; font-size: 13px; padding: 7px 9px; borde
   <div class="modal" style="max-width:360px">
     <div class="modal-title" id="bam-title">Edit block</div>
     <div id="bam-info" style="background:var(--bg-secondary);border-radius:var(--radius-md);padding:10px 14px;margin-bottom:1rem;font-size:13px"></div>
+
+    <!-- Edit panel -->
     <div id="bam-edit-panel">
       <div class="form-row">
         <div><label>Start time</label><input type="time" id="bam-start"></div>
@@ -275,12 +277,27 @@ select, input[type=time] { width: 100%; font-size: 13px; padding: 7px 9px; borde
         <button class="bs" onclick="closeBam()">Cancel</button>
       </div>
     </div>
+
+    <!-- Delete panel -->
     <div id="bam-delete-panel" style="display:none">
       <p style="font-size:13px;color:var(--text-secondary);margin-bottom:.75rem">What should replace this block?</p>
       <div id="bam-replace-options" style="display:flex;flex-direction:column;gap:6px;margin-bottom:1rem"></div>
       <div class="btn-row">
         <button class="bp" onclick="bamConfirmDelete()">Delete &amp; replace</button>
         <button class="bs" onclick="bamShowEdit()">Edit instead</button>
+        <button class="bs" onclick="closeBam()">Cancel</button>
+      </div>
+    </div>
+
+    <!-- Add panel -->
+    <div id="bam-add-panel" style="display:none">
+      <div class="form-row">
+        <div><label>Start time</label><input type="time" id="bam-add-start"></div>
+        <div><label>End time</label><input type="time" id="bam-add-end"></div>
+      </div>
+      <div style="margin-bottom:12px"><label>Activity</label><select id="bam-add-act"></select></div>
+      <div class="btn-row">
+        <button class="bp" onclick="bamSaveAdd()">Add block</button>
         <button class="bs" onclick="closeBam()">Cancel</button>
       </div>
     </div>
@@ -662,7 +679,13 @@ function buildDragBar(blocks,agent,day,fw){
   const tz=ATZ[agent];
   const bS=Math.min(...blocks.map(b=>t2m(b[1]))),bE=Math.max(...blocks.map(b=>t2m(b[2]))),tot=bE-bS;
   const nowM=nowFor(tz),inDay=nowM>=bS&&nowM<=bE;
-  let html=`<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-tertiary);margin-bottom:2px"><span>${m2d(bS)}</span><span>${m2d(bE)}</span></div>`;
+  let html=`<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-tertiary);margin-bottom:2px">
+    <span>${m2d(bS)}</span>
+    <span style="display:flex;align-items:center;gap:6px">
+      <button onclick="openAddBlock(event,'${agent}','${day}',${fw})" style="font-size:10px;padding:1px 7px;border:0.5px solid var(--border-mid);border-radius:var(--radius-sm);background:transparent;cursor:pointer;color:var(--text-secondary);font-family:var(--font)">+ Add block</button>
+      ${m2d(bE)}
+    </span>
+  </div>`;
   html+=`<div class="tl-bar drag-bar" id="dragbar-${agent}" style="height:44px;cursor:default">`;
   blocks.forEach((b,i)=>{
     const s=t2m(b[1]),e=t2m(b[2]),w=((e-s)/tot*100).toFixed(2);
@@ -1122,7 +1145,7 @@ function onAddDayChange(){
   updateEditDateDisplay();
 }
 function populateSelects(){
-  ['edit-activity','add-activity','builder-act','bam-act'].forEach(id=>{
+  ['edit-activity','add-activity','builder-act','bam-act','bam-add-act'].forEach(id=>{
     const el=document.getElementById(id);
     if(el) el.innerHTML=ACTIVITIES.map(a=>`<option>${a}</option>`).join('');
   });
@@ -1563,6 +1586,47 @@ function execCopyFromDate(){
 // ── Block action modal (click to edit/delete) ─────────────────
 let bam={}; // current block being acted on: {agent,day,fw,idx,block}
 
+function openAddBlock(e,agent,day,fw){
+  if(!managerUnlocked) return;
+  e.stopPropagation();
+  bam={agent,day,fw,idx:-1,block:null};
+  const tz=ATZ[agent];
+  const dateStr=toISO(dateOfDay(day,weekOffset));
+  const dateDisp=new Date(dateStr+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+  // Suggest start time = end of last block
+  const blocks=getRawBlocks(agent,day,fw);
+  const suggestStart=blocks.length?blocks[blocks.length-1][2]:'09:00';
+  const suggestEnd=m2t(Math.min(t2m(suggestStart)+60,1020)); // default 1hr, max 5pm
+  document.getElementById('bam-title').textContent=`Add block — ${agent}`;
+  document.getElementById('bam-info').innerHTML=
+    `Adding to <strong>${agent}</strong>'s schedule <span style="color:var(--text-tertiary)">${dateDisp} · ${tz}</span>`;
+  document.getElementById('bam-add-start').value=suggestStart;
+  document.getElementById('bam-add-end').value=suggestEnd;
+  document.getElementById('bam-add-act').value='On Phones';
+  bamShowAdd();
+  document.getElementById('block-action-modal').classList.add('open');
+}
+
+function bamShowAdd(){
+  document.getElementById('bam-edit-panel').style.display='none';
+  document.getElementById('bam-delete-panel').style.display='none';
+  document.getElementById('bam-add-panel').style.display='block';
+}
+
+function bamSaveAdd(){
+  const ns=document.getElementById('bam-add-start').value;
+  const ne=document.getElementById('bam-add-end').value;
+  const act=document.getElementById('bam-add-act').value;
+  if(!ns||!ne){alert('Please enter start and end times.');return;}
+  if(t2m(ne)<=t2m(ns)){alert('End time must be after start time.');return;}
+  const{agent,day,fw}=bam;
+  const blocks=JSON.parse(JSON.stringify(getRawBlocks(agent,day,fw)));
+  blocks.push([act,ns,ne]);
+  blocks.sort((a,b)=>t2m(a[1])-t2m(b[1]));
+  saveBlocksForDate(agent,day,fw,blocks);
+  closeBam();
+}
+
 function openBlockAction(e,agent,day,fw,idx){
   // Don't open if this was a drag start — check if mouse moved
   if(drag._wasDrag){drag._wasDrag=false;return;}
@@ -1604,10 +1668,12 @@ function openBlockAction(e,agent,day,fw,idx){
 function bamShowEdit(){
   document.getElementById('bam-edit-panel').style.display='block';
   document.getElementById('bam-delete-panel').style.display='none';
+  document.getElementById('bam-add-panel').style.display='none';
 }
 function bamShowDelete(){
   document.getElementById('bam-edit-panel').style.display='none';
   document.getElementById('bam-delete-panel').style.display='block';
+  document.getElementById('bam-add-panel').style.display='none';
 }
 
 function bamSaveEdit(){
