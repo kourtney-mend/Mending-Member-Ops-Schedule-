@@ -400,13 +400,32 @@ const ATZ={Ebony:'EST',Marisa:'CST',Ky:'CST'};
 
 const TO_EST={EST:0,CST:1,PST:3};
 const COV_S=540,COV_E=1080;
-const SK='mending-sched-v1',FK='mending-fri-v1',OK='mending-ob-v1',OOK='mending-ooo-v1';
+const SK='mending-sched-v2',FK='mending-fri-v2',OK='mending-ob-v2',OOK='mending-ooo-v2';
 
 function t2m(t){const[h,m]=t.split(':').map(Number);return h*60+m;}
 function m2t(m){m=((m%1440)+1440)%1440;return`${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;}
 function m2d(m){m=((m%1440)+1440)%1440;const h=Math.floor(m/60),mn=m%60,ap=h>=12?'pm':'am',hh=h>12?h-12:(h===0?12:h);return`${hh}${mn?':'+String(mn).padStart(2,'0'):''}${ap}`;}
 
-const BASE={Ebony:{Monday:[['On Phones','09:00','11:00'],['Break 1','11:00','11:15'],['On Phones','11:15','13:15'],['Break 2','13:15','13:30'],['Outbound','13:30','15:00'],['Lunch','15:00','15:30'],['On Phones','15:30','16:15'],['Ticket Time','16:15','17:00']],Tuesday:[['On Phones','09:00','11:00'],['Break 1','11:00','11:15'],['On Phones','11:15','12:15'],['Weekly Sync','12:15','12:45'],['On Phones','12:45','13:00'],['Break 2','13:00','13:15'],['Outbound','13:15','14:45'],['Lunch','14:45','15:15'],['Project Time','15:15','16:15'],['Ticket Time','16:15','17:00']],Wednesday:[['On Phones','09:00','11:00'],['Break 1','11:00','11:15'],['On Phones','11:15','12:00'],['1:1','12:00','12:30'],['On Phones','12:30','13:15'],['Break 2','13:15','13:30'],['On Phones','13:30','14:00'],['Outbound','14:00','15:30'],['Lunch','15:30','16:00'],['On Phones','16:00','16:15'],['Ticket Time','16:15','17:00']],Thursday:[['On Phones','09:00','11:00'],['Break 1','11:00','11:15'],['On Phones','11:15','13:15'],['Break 2','13:15','13:30'],['On Phones','13:30','14:00'],['Outbound','14:00','15:30'],['Lunch','15:30','16:00'],['On Phones','16:00','16:15'],['Ticket Time','16:15','17:00']]},Marisa:{Monday:[['Ticket Time','08:30','09:15'],['On Phones','09:15','10:45'],['Break 1','10:45','11:00'],['On Phones','11:00','14:15'],['Lunch','14:15','14:45'],['Break 2','14:45','15:00'],['Outbound','15:00','16:30']],Tuesday:[['Ticket Time','08:30','09:15'],['On Phones','09:15','10:45'],['Break 1','10:45','11:00'],['On Phones','11:00','11:15'],['Weekly Sync','11:15','11:45'],['On Phones','11:45','12:30'],['1:1','12:30','13:00'],['On Phones','13:00','14:00'],['Break 2','14:00','14:15'],['Lunch','14:15','14:45'],['On Phones','14:45','15:00'],['Outbound','15:00','16:30']],Wednesday:[['Ticket Time','08:30','09:15'],['On Phones','09:15','10:45'],['Break 1','10:45','11:00'],['On Phones','11:00','14:00'],['Break 2','14:00','14:15'],['Lunch','14:15','14:45'],['On Phones','14:45','15:00'],['Outbound','15:00','16:30']],Thursday:[['Ticket Time','08:30','09:15'],['On Phones','09:15','10:45'],['Break 1','10:45','11:00'],['Project Time','11:00','12:00'],['On Phones','12:00','14:00'],['Break 2','14:00','14:15'],['Lunch','14:15','14:45'],['On Phones','14:45','15:00'],['Outbound','15:00','16:30']]},Ky:{Monday:[['Ticket Time','09:00','09:45'],['Outbound','09:45','11:15'],['On Phones','11:15','11:30'],['Lunch','11:30','12:00'],['Break 1','12:00','12:15'],['On Phones','12:15','15:00'],['Break 2','15:00','15:15'],['On Phones','15:15','17:00']],Tuesday:[['Ticket Time','09:00','09:45'],['Outbound','09:45','11:15'],['Weekly Sync','11:15','11:45'],['Lunch','11:45','12:15'],['Break 1','12:15','12:30'],['On Phones','12:30','14:45'],['Break 2','14:45','15:00'],['On Phones','15:00','17:00']],Wednesday:[['Ticket Time','09:00','09:45'],['Outbound','09:45','11:15'],['On Phones','11:15','11:30'],['Lunch','11:30','12:00'],['Break 1','12:00','12:15'],['Project Time','12:15','13:15'],['On Phones','13:15','15:00'],['Break 2','15:00','15:15'],['On Phones','15:15','17:00']],Thursday:[['Ticket Time','09:00','09:45'],['Outbound','09:45','11:15'],['On Phones','11:15','11:45'],['Lunch','11:45','12:15'],['Break 1','12:15','12:30'],['1:1','12:30','13:00'],['On Phones','13:00','15:00'],['Break 2','15:00','15:15'],['On Phones','15:15','17:00']]}};
+const BASE={
+  Ebony:{
+    Monday:[['On Phones','09:00','09:30'],['Ticket Time','09:30','10:00'],['Outbound','10:00','11:00'],['Break 1','11:00','11:15'],['On Phones','11:15','13:15'],['Break 2','13:15','13:30'],['On Phones','13:30','15:00'],['Lunch','15:00','15:30'],['On Phones','15:30','16:00'],['Weekly Sync','16:00','16:30'],['On Phones','16:30','17:00']],
+    Tuesday:[['On Phones','09:00','09:30'],['Ticket Time','09:30','10:00'],['Outbound','10:00','11:00'],['Break 1','11:00','11:15'],['On Phones','11:15','13:15'],['Break 2','13:15','13:30'],['Project Time','13:30','14:30'],['On Phones','14:30','15:00'],['Lunch','15:00','15:30'],['On Phones','15:30','17:00']],
+    Wednesday:[['On Phones','09:00','09:30'],['Ticket Time','09:30','10:00'],['Outbound','10:00','11:00'],['Break 1','11:00','11:15'],['On Phones','11:15','12:00'],['1:1','12:00','12:30'],['On Phones','12:30','13:15'],['Break 2','13:15','13:30'],['On Phones','13:30','15:00'],['Lunch','15:00','15:30'],['On Phones','15:30','17:00']],
+    Thursday:[['On Phones','09:00','09:30'],['Ticket Time','09:30','10:00'],['Outbound','10:00','11:00'],['Break 1','11:00','11:15'],['On Phones','11:15','13:15'],['Break 2','13:15','13:30'],['On Phones','13:30','15:00'],['Lunch','15:00','15:30'],['On Phones','15:30','17:00']],
+  },
+  Marisa:{
+    Monday:[['On Phones','08:30','09:00'],['Ticket Time','09:00','09:30'],['On Phones','09:30','10:45'],['Break 1','10:45','11:00'],['On Phones','11:00','13:15'],['Break 2','13:15','13:30'],['Lunch','13:30','14:00'],['Outbound','14:00','15:00'],['Weekly Sync','15:00','15:30'],['On Phones','15:30','16:30']],
+    Tuesday:[['On Phones','08:30','09:00'],['Ticket Time','09:00','09:30'],['On Phones','09:30','10:45'],['Break 1','10:45','11:00'],['On Phones','11:00','13:30'],['1:1','13:30','14:00'],['On Phones','14:00','14:15'],['Lunch','14:15','14:45'],['Break 2','14:45','15:00'],['Outbound','15:00','16:00'],['On Phones','16:00','16:30']],
+    Wednesday:[['On Phones','08:30','09:00'],['Ticket Time','09:00','09:30'],['On Phones','09:30','10:45'],['Break 1','10:45','11:00'],['On Phones','11:00','14:15'],['Break 2','14:15','14:30'],['Lunch','14:30','15:00'],['Outbound','15:00','16:00'],['On Phones','16:00','16:30']],
+    Thursday:[['On Phones','08:30','09:00'],['Ticket Time','09:00','09:30'],['On Phones','09:30','10:45'],['Break 1','10:45','11:00'],['On Phones','11:00','13:00'],['Project Time','13:00','14:00'],['Lunch','14:00','14:30'],['Break 2','14:30','14:45'],['On Phones','14:45','15:00'],['Outbound','15:00','16:00'],['On Phones','16:00','16:30']],
+  },
+  Ky:{
+    Monday:[['On Phones','09:00','09:30'],['Ticket Time','09:30','10:00'],['On Phones','10:00','11:30'],['Lunch','11:30','12:00'],['Break 1','12:00','12:15'],['On Phones','12:15','14:45'],['Break 2','14:45','15:00'],['Weekly Sync','15:00','15:30'],['Outbound','15:30','16:30'],['On Phones','16:30','17:00']],
+    Tuesday:[['On Phones','09:00','09:30'],['Ticket Time','09:30','10:00'],['On Phones','10:00','11:30'],['Lunch','11:30','12:00'],['Break 1','12:00','12:15'],['On Phones','12:15','15:00'],['Break 2','15:00','15:15'],['Outbound','15:15','16:15'],['On Phones','16:15','17:00']],
+    Wednesday:[['On Phones','09:00','09:30'],['Ticket Time','09:30','10:00'],['On Phones','10:00','11:30'],['Lunch','11:30','12:00'],['Break 1','12:00','12:15'],['Project Time','12:15','13:15'],['On Phones','13:15','15:00'],['Break 2','15:00','15:15'],['Outbound','15:15','16:15'],['On Phones','16:15','17:00']],
+    Thursday:[['On Phones','09:00','09:30'],['Ticket Time','09:30','10:00'],['On Phones','10:00','11:30'],['Lunch','11:30','12:00'],['Break 1','12:00','12:15'],['On Phones','12:15','12:30'],['1:1','12:30','13:00'],['On Phones','13:00','15:00'],['Break 2','15:00','15:15'],['Outbound','15:15','16:15'],['On Phones','16:15','17:00']],
+  }
+};
 const BF={1:{Ebony:[['On Phones','09:00','11:00'],['Break 1','11:00','11:15'],['On Phones','11:15','13:15'],['Break 2','13:15','13:30'],['Lunch','13:30','14:00'],['On Phones','14:00','15:00'],['All Hands','15:00','15:45'],['On Phones','15:45','16:00'],['Ticket Time','16:00','17:00']],Marisa:[['Ticket Time','08:30','09:00'],['On Phones','09:00','10:15'],['Break 1','10:15','10:30'],['On Phones','10:30','13:15'],['Break 2','13:15','13:30'],['On Phones','13:30','14:45'],['Lunch','14:45','15:15'],['On Phones','15:15','16:00'],['Ticket Time','16:00','16:30']],Ky:[['Ticket Time','09:00','10:00'],['On Phones','10:00','11:30'],['Lunch','11:30','12:00'],['Break 1','12:00','12:15'],['On Phones','12:15','15:15'],['Break 2','15:15','15:30'],['On Phones','15:30','17:00']]},2:{Ebony:[['On Phones','09:00','11:00'],['Break 1','11:00','11:15'],['On Phones','11:15','13:15'],['Break 2','13:15','13:30'],['Lunch','13:30','14:00'],['On Phones','14:00','16:00'],['Ticket Time','16:00','17:00']],Marisa:[['Ticket Time','08:30','09:00'],['On Phones','09:00','10:15'],['Break 1','10:15','10:30'],['On Phones','10:30','13:15'],['Break 2','13:15','13:30'],['On Phones','13:30','14:00'],['All Hands','14:00','14:45'],['Lunch','14:45','15:15'],['On Phones','15:15','16:00'],['Ticket Time','16:00','16:30']],Ky:[['Ticket Time','09:00','10:00'],['On Phones','10:00','11:30'],['Lunch','11:30','12:00'],['Break 1','12:00','12:15'],['On Phones','12:15','15:15'],['Break 2','15:15','15:30'],['On Phones','15:30','17:00']]},3:{Ebony:[['On Phones','09:00','11:00'],['Break 1','11:00','11:15'],['On Phones','11:15','13:15'],['Break 2','13:15','13:30'],['Lunch','13:30','14:00'],['On Phones','14:00','16:00'],['Ticket Time','16:00','17:00']],Marisa:[['Ticket Time','08:30','09:00'],['On Phones','09:00','10:15'],['Break 1','10:15','10:30'],['On Phones','10:30','13:15'],['Break 2','13:15','13:30'],['On Phones','13:30','14:45'],['Lunch','14:45','15:15'],['On Phones','15:15','16:00'],['Ticket Time','16:00','16:30']],Ky:[['Ticket Time','09:00','10:00'],['On Phones','10:00','11:30'],['Lunch','11:30','12:00'],['Break 1','12:00','12:15'],['On Phones','12:15','14:00'],['All Hands','14:00','14:45'],['On Phones','14:45','15:15'],['Break 2','15:15','15:30'],['On Phones','15:30','17:00']]}};
 
 const ROT=[3,1,2];
@@ -418,6 +437,7 @@ tf.setDate(td.getDate()+(td.getDay()===5?0:dtf));
 let sched=JSON.parse(JSON.stringify(BASE)),fsched=JSON.parse(JSON.stringify(BF));
 // noOB and ooo now keyed by ISO date string 'YYYY-MM-DD' instead of day name
 let noOB={};  // {dateStr: {Ebony:bool, Marisa:bool, Ky:bool}}
+let noPT={};  // {dateStr: {Ebony:bool, Marisa:bool, Ky:bool}} — no project time toggle
 let ooo={};   // {agent: {dateStr: true/false}}
 // schedOverrides: date-specific block overrides that take priority over base sched
 // {agent: {dateStr: [blocks]}} for weekdays
@@ -475,7 +495,7 @@ function getFriWeekForDate(d){
 // State: current selected day name + week offset (shared across views)
 let mDay='Monday',mFW=gfw(tf),aView='Ebony',aDay='Monday',aFW=gfw(tf),cDay='Monday',cFW=gfw(tf);
 
-const SOK='mending-overrides-v1',FOK='mending-fri-overrides-v1';
+const SOK='mending-overrides-v2',FOK='mending-fri-overrides-v2',PTK='mending-nopt-v2';
 function save(){
   setSS('saving');
   try{
@@ -485,19 +505,22 @@ function save(){
     localStorage.setItem(OOK,JSON.stringify(ooo));
     localStorage.setItem(SOK,JSON.stringify(schedOverrides));
     localStorage.setItem(FOK,JSON.stringify(friOverrides));
+    localStorage.setItem(PTK,JSON.stringify(noPT));
     setSS('saved');
   }catch(e){setSS('error');}
 }
 function load(){
   try{
     const s=localStorage.getItem(SK),f=localStorage.getItem(FK),o=localStorage.getItem(OK),
-          oo=localStorage.getItem(OOK),so=localStorage.getItem(SOK),fo=localStorage.getItem(FOK);
+          oo=localStorage.getItem(OOK),so=localStorage.getItem(SOK),fo=localStorage.getItem(FOK),
+          pt=localStorage.getItem(PTK);
     if(s)sched=JSON.parse(s);
     if(f)fsched=JSON.parse(f);
     if(o)noOB=JSON.parse(o);
     if(oo)ooo=JSON.parse(oo);
     if(so)schedOverrides=JSON.parse(so);
     if(fo)friOverrides=JSON.parse(fo);
+    if(pt)noPT=JSON.parse(pt);
     setSS('saved');
   }catch(e){setSS('saved');}
   renderAll();
@@ -551,15 +574,19 @@ function getRawBlocks(agent,day,fw){
 
 function gBlocks(agent,day,fw,tS,tF){
   const dateStr=toISO(dateOfDay(day,weekOffset));
-  // Get base blocks — check date overrides first, then tS/tF test copies, then live sched
   let blocks;
   if(tS||tF){
     blocks=day==='Friday'?(tF||fsched)[fw][agent]||[]:(tS||sched)[agent][day]||[];
   } else {
     blocks=getRawBlocks(agent,day,fw);
   }
+  // Apply no-outbound transform
   if(day!=='Friday'&&noOB[dateStr]&&noOB[dateStr][agent]){
     blocks=mergeOP(blocks.map(x=>x[0]==='Outbound'?['On Phones',x[1],x[2]]:x));
+  }
+  // Apply no-project-time transform
+  if(day!=='Friday'&&noPT[dateStr]&&noPT[dateStr][agent]){
+    blocks=mergeOP(blocks.map(x=>x[0]==='Project Time'?['On Phones',x[1],x[2]]:x));
   }
   if(ooo[agent]&&ooo[agent][dateStr]) return blocks;
   const someoneOOO=AGENTS.filter(a=>a!==agent&&ooo[a]&&ooo[a][dateStr]).length>0;
@@ -577,6 +604,12 @@ function toggleAgentOB(agent,dateStr){
   if(!managerUnlocked){requirePIN('manager',()=>toggleAgentOB(agent,dateStr));return;}
   if(!noOB[dateStr]) noOB[dateStr]={};
   noOB[dateStr][agent]=!noOB[dateStr][agent];
+  save();renderAll();
+}
+function toggleAgentPT(agent,dateStr){
+  if(!managerUnlocked){requirePIN('manager',()=>toggleAgentPT(agent,dateStr));return;}
+  if(!noPT[dateStr]) noPT[dateStr]={};
+  noPT[dateStr][agent]=!noPT[dateStr][agent];
   save();renderAll();
 }
 function getTZOffsetMins(tz){
@@ -990,6 +1023,7 @@ function renderManager(){
     const tz=ATZ[a];
     const isOOO=ooo[a]&&ooo[a][mDateStr];
     const isNoOB=mDay!=='Friday'&&noOB[mDateStr]&&noOB[mDateStr][a];
+    const isNoPT=mDay!=='Friday'&&noPT[mDateStr]&&noPT[mDateStr][a];
     const div=document.createElement('div');div.className='agent-row';
     div.innerHTML=`
       <div class="agent-header">
@@ -997,6 +1031,7 @@ function renderManager(){
           <div class="agent-name" style="${isOOO?'opacity:0.4;text-decoration:line-through':''}">${a}</div>
           ${isOOO?`<span style="font-size:10px;background:#FAEEDA;color:#633806;border:0.5px solid #FAC775;padding:1px 7px;border-radius:20px;font-weight:500">OOO</span>`:''}
           ${isNoOB&&!isOOO?`<span style="font-size:10px;background:#E6F1FB;color:#185FA5;border:0.5px solid #B5D4F4;padding:1px 7px;border-radius:20px;font-weight:500">No OB</span>`:''}
+          ${isNoPT&&!isOOO?`<span style="font-size:10px;background:#EAF3DE;color:#27500A;border:0.5px solid #C0DD97;padding:1px 7px;border-radius:20px;font-weight:500">No PT</span>`:''}
         </div>
         <div style="display:flex;align-items:center;gap:6px">
           <div class="tz-pills">
@@ -1007,6 +1042,10 @@ function renderManager(){
           ${mDay!=='Friday'&&!isOOO?`<button onclick="toggleAgentOB('${a}','${mDateStr}')"
             style="font-size:11px;padding:2px 9px;border-radius:20px;cursor:pointer;font-family:var(--font);border:0.5px solid;${isNoOB?'background:#E6F1FB;color:#185FA5;border-color:#B5D4F4':'background:var(--bg-secondary);color:var(--text-tertiary);border-color:var(--border-light)'}">
             ${isNoOB?'✓ OB on':'No OB'}
+          </button>`:''}
+          ${mDay!=='Friday'&&!isOOO?`<button onclick="toggleAgentPT('${a}','${mDateStr}')"
+            style="font-size:11px;padding:2px 9px;border-radius:20px;cursor:pointer;font-family:var(--font);border:0.5px solid;${isNoPT?'background:#EAF3DE;color:#27500A;border-color:#C0DD97':'background:var(--bg-secondary);color:var(--text-tertiary);border-color:var(--border-light)'}">
+            ${isNoPT?'✓ PT on':'No PT'}
           </button>`:''}
           <button onclick="toggleOOO('${a}','${mDateStr}')"
             style="font-size:11px;padding:2px 9px;border-radius:20px;cursor:pointer;font-family:var(--font);border:0.5px solid;${isOOO?'background:#EAF3DE;color:#27500A;border-color:#C0DD97':'background:var(--bg-secondary);color:var(--text-tertiary);border-color:var(--border-light)'}">
@@ -1347,7 +1386,7 @@ function closeCovModal(){document.getElementById('cov-modal').classList.remove('
 function resetSchedule(){
   if(!confirm('Reset all schedules to the original? This cannot be undone.'))return;
   sched=JSON.parse(JSON.stringify(BASE));fsched=JSON.parse(JSON.stringify(BF));
-  noOB={};ooo={};schedOverrides={};friOverrides={1:{},2:{},3:{}};
+  noOB={};noPT={};ooo={};schedOverrides={};friOverrides={1:{},2:{},3:{}};
   AGENTS.forEach(a=>{ooo[a]={};schedOverrides[a]={};[1,2,3].forEach(fw=>{friOverrides[fw][a]={};});});
   save();renderAll();
 }
