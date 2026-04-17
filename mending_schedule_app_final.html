@@ -128,6 +128,7 @@ select, input[type=time] { width: 100%; font-size: 13px; padding: 7px 9px; borde
     <button class="tab" onclick="requirePIN('builder')">Schedule Builder 🔒</button>
     <button class="tab" onclick="requirePIN('edit')">Edit block 🔒</button>
     <button class="tab" onclick="switchTab('coverage')">Coverage check</button>
+    <button class="tab" onclick="switchTab('transfers')">Transfers Only</button>
   </div>
   <div id="view-manager" class="view active">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">
@@ -422,6 +423,11 @@ select, input[type=time] { width: 100%; font-size: 13px; padding: 7px 9px; borde
     <div id="review-list"></div>
   </div>
 
+  <div id="view-transfers" class="view">
+    <div class="day-select" id="to-week-nav"></div>
+    <div id="to-content"></div>
+  </div>
+
   <!-- SCHEDULE BUILDER -->
   <div id="view-builder" class="view">
 
@@ -635,7 +641,7 @@ select, input[type=time] { width: 100%; font-size: 13px; padding: 7px 9px; borde
 </div>
 
 <script>
-const COLORS={'On Phones':{bg:'#B5D4F4',text:'#0C447C'},'Outbound':{bg:'#9FE1CB',text:'#085041'},'Ticket Time':{bg:'#CECBF6',text:'#3C3489'},'Break 1':{bg:'#D3D1C7',text:'#444441'},'Break 2':{bg:'#D3D1C7',text:'#444441'},'Lunch':{bg:'#FAC775',text:'#633806'},'Weekly Sync':{bg:'#F4C0D1',text:'#72243E'},'Project Time':{bg:'#C0DD97',text:'#27500A'},'1:1':{bg:'#F5C4B3',text:'#712B13'},'All Hands':{bg:'#EF9F27',text:'#412402'}};
+const COLORS={'On Phones':{bg:'#B5D4F4',text:'#0C447C'},'Outbound':{bg:'#9FE1CB',text:'#085041'},'Ticket Time':{bg:'#CECBF6',text:'#3C3489'},'Break 1':{bg:'#D3D1C7',text:'#444441'},'Break 2':{bg:'#D3D1C7',text:'#444441'},'Lunch':{bg:'#FAC775',text:'#633806'},'Weekly Sync':{bg:'#F4C0D1',text:'#72243E'},'Project Time':{bg:'#C0DD97',text:'#27500A'},'1:1':{bg:'#F5C4B3',text:'#712B13'},'All Hands':{bg:'#EF9F27',text:'#412402'},'Off':{bg:'#E8E7E3',text:'#888780'}};
 const ACTIVITIES=Object.keys(COLORS);
 const DAYS=['Monday','Tuesday','Wednesday','Thursday','Friday'];
 const AGENTS=['Ebony','Marisa','Ky'];
@@ -680,7 +686,8 @@ tf.setDate(td.getDate()+(td.getDay()===5?0:dtf));
 let sched=JSON.parse(JSON.stringify(BASE)),fsched=JSON.parse(JSON.stringify(BF));
 // noOB and ooo now keyed by ISO date string 'YYYY-MM-DD' instead of day name
 let noOB={};  // {dateStr: {Ebony:bool, Marisa:bool, Ky:bool}}
-let noPT={};  // {dateStr: {Ebony:bool, Marisa:bool, Ky:bool}} — no project time toggle
+let noPT={};  // {dateStr: {Ebony:bool, Marisa:bool, Ky:bool}}
+let noHoliday={}; // {dateStr: {Ebony:bool, Marisa:bool, Ky:bool}} — holiday mode
 let ooo={};   // {agent: {dateStr: true/false}}
 // schedOverrides: date-specific block overrides that take priority over base sched
 // {agent: {dateStr: [blocks]}} for weekdays
@@ -738,7 +745,7 @@ function getFriWeekForDate(d){
 // State: current selected day name + week offset (shared across views)
 let mDay='Monday',mFW=gfw(tf),aView='Ebony',aDay='Monday',aFW=gfw(tf),cDay='Monday',cFW=gfw(tf);
 
-const SOK='mending-overrides-v2',FOK='mending-fri-overrides-v2',PTK='mending-nopt-v2';
+const SOK='mending-overrides-v2',FOK='mending-fri-overrides-v2',PTK='mending-nopt-v2',HK='mending-holiday-v2';
 function save(){
   setSS('saving');
   try{
@@ -749,6 +756,7 @@ function save(){
     localStorage.setItem(SOK,JSON.stringify(schedOverrides));
     localStorage.setItem(FOK,JSON.stringify(friOverrides));
     localStorage.setItem(PTK,JSON.stringify(noPT));
+    localStorage.setItem(HK,JSON.stringify(noHoliday));
     setSS('saved');
   }catch(e){setSS('error');}
 }
@@ -756,7 +764,7 @@ function load(){
   try{
     const s=localStorage.getItem(SK),f=localStorage.getItem(FK),o=localStorage.getItem(OK),
           oo=localStorage.getItem(OOK),so=localStorage.getItem(SOK),fo=localStorage.getItem(FOK),
-          pt=localStorage.getItem(PTK);
+          pt=localStorage.getItem(PTK),hol=localStorage.getItem(HK);
     if(s)sched=JSON.parse(s);
     if(f)fsched=JSON.parse(f);
     if(o)noOB=JSON.parse(o);
@@ -764,6 +772,7 @@ function load(){
     if(so)schedOverrides=JSON.parse(so);
     if(fo)friOverrides=JSON.parse(fo);
     if(pt)noPT=JSON.parse(pt);
+    if(hol)noHoliday=JSON.parse(hol);
     setSS('saved');
   }catch(e){setSS('saved');}
   renderAll();
@@ -823,13 +832,18 @@ function gBlocks(agent,day,fw,tS,tF){
   } else {
     blocks=getRawBlocks(agent,day,fw);
   }
-  // Apply no-outbound transform
-  if(day!=='Friday'&&noOB[dateStr]&&noOB[dateStr][agent]){
-    blocks=mergeOP(blocks.map(x=>x[0]==='Outbound'?['On Phones',x[1],x[2]]:x));
-  }
-  // Apply no-project-time transform
-  if(day!=='Friday'&&noPT[dateStr]&&noPT[dateStr][agent]){
-    blocks=mergeOP(blocks.map(x=>x[0]==='Project Time'?['On Phones',x[1],x[2]]:x));
+  // Apply holiday transform first — keeps breaks, lunch, ticket time; replaces all else with On Phones
+  const HOLIDAY_KEEP=['Break 1','Break 2','Lunch','Ticket Time'];
+  if(noHoliday[dateStr]&&noHoliday[dateStr][agent]){
+    blocks=mergeOP(blocks.map(x=>HOLIDAY_KEEP.includes(x[0])?x:['On Phones',x[1],x[2]]));
+  } else {
+    // Apply individual toggles only if not in holiday mode
+    if(day!=='Friday'&&noOB[dateStr]&&noOB[dateStr][agent]){
+      blocks=mergeOP(blocks.map(x=>x[0]==='Outbound'?['On Phones',x[1],x[2]]:x));
+    }
+    if(day!=='Friday'&&noPT[dateStr]&&noPT[dateStr][agent]){
+      blocks=mergeOP(blocks.map(x=>x[0]==='Project Time'?['On Phones',x[1],x[2]]:x));
+    }
   }
   if(ooo[agent]&&ooo[agent][dateStr]) return blocks;
   const someoneOOO=AGENTS.filter(a=>a!==agent&&ooo[a]&&ooo[a][dateStr]).length>0;
@@ -853,6 +867,12 @@ function toggleAgentPT(agent,dateStr){
   if(!managerUnlocked){requirePIN('manager',()=>toggleAgentPT(agent,dateStr));return;}
   if(!noPT[dateStr]) noPT[dateStr]={};
   noPT[dateStr][agent]=!noPT[dateStr][agent];
+  save();renderAll();
+}
+function toggleAgentHoliday(agent,dateStr){
+  if(!managerUnlocked){requirePIN('manager',()=>toggleAgentHoliday(agent,dateStr));return;}
+  if(!noHoliday[dateStr]) noHoliday[dateStr]={};
+  noHoliday[dateStr][agent]=!noHoliday[dateStr][agent];
   save();renderAll();
 }
 function getTZOffsetMins(tz){
@@ -1001,11 +1021,13 @@ function buildPSTBar(blocks,agent,tz){
 
 function renderDualTL(agent,day,fw,container){
   const tz=ATZ[agent];
-  const displayBlocks=gBlocks(agent,day,fw); // transformed (OOO/noOB) — for visual
-  const rawBlocks=getRawBlocks(agent,day,fw); // raw saved — for drag handles
+  const displayBlocks=gBlocks(agent,day,fw); // transformed (holiday/OOO/noOB/noPT) — for visual
+  const rawBlocks=getRawBlocks(agent,day,fw); // raw saved — for drag index mapping
   if(!displayBlocks.length){container.innerHTML='<p style="font-size:12px;color:var(--text-tertiary)">No blocks</p>';return;}
+  // Use displayBlocks for the visible bar so toggles (holiday, noOB, noPT) are reflected
+  // rawBlocks are passed to buildDragBar only so drag indices stay anchored to saved data
   container.innerHTML=`<div class="dual-wrap">
-    <div class="tl-row"><div class="tl-tz" style="color:#185FA5">${tz}</div><div class="tl-outer" id="dragbar-wrap-${agent}">${buildDragBar(rawBlocks,agent,day,fw)}</div></div>
+    <div class="tl-row"><div class="tl-tz" style="color:#185FA5">${tz}</div><div class="tl-outer" id="dragbar-wrap-${agent}">${buildDragBar(displayBlocks,agent,day,fw)}</div></div>
     <div class="tl-row"><div class="tl-tz" style="color:var(--text-tertiary)">PST</div><div class="tl-outer">${buildPSTBar(displayBlocks,agent,tz)}</div></div>
   </div>`;
   container.querySelector('.drag-bar').title='Drag middle to move · Drag right edge to resize';
@@ -1267,6 +1289,7 @@ function renderManager(){
     const isOOO=ooo[a]&&ooo[a][mDateStr];
     const isNoOB=mDay!=='Friday'&&noOB[mDateStr]&&noOB[mDateStr][a];
     const isNoPT=mDay!=='Friday'&&noPT[mDateStr]&&noPT[mDateStr][a];
+    const isHoliday=noHoliday[mDateStr]&&noHoliday[mDateStr][a];
     const div=document.createElement('div');div.className='agent-row';
     div.innerHTML=`
       <div class="agent-header">
@@ -1275,6 +1298,7 @@ function renderManager(){
           ${isOOO?`<span style="font-size:10px;background:#FAEEDA;color:#633806;border:0.5px solid #FAC775;padding:1px 7px;border-radius:20px;font-weight:500">OOO</span>`:''}
           ${isNoOB&&!isOOO?`<span style="font-size:10px;background:#E6F1FB;color:#185FA5;border:0.5px solid #B5D4F4;padding:1px 7px;border-radius:20px;font-weight:500">No OB</span>`:''}
           ${isNoPT&&!isOOO?`<span style="font-size:10px;background:#EAF3DE;color:#27500A;border:0.5px solid #C0DD97;padding:1px 7px;border-radius:20px;font-weight:500">No PT</span>`:''}
+          ${isHoliday&&!isOOO?`<span style="font-size:10px;background:#F4C0D1;color:#72243E;border:0.5px solid #E8A0BC;padding:1px 7px;border-radius:20px;font-weight:500">🎉 Holiday</span>`:''}
         </div>
         <div style="display:flex;align-items:center;gap:6px">
           <div class="tz-pills">
@@ -1289,6 +1313,10 @@ function renderManager(){
           ${mDay!=='Friday'&&!isOOO?`<button onclick="toggleAgentPT('${a}','${mDateStr}')"
             style="font-size:11px;padding:2px 9px;border-radius:20px;cursor:pointer;font-family:var(--font);border:0.5px solid;${isNoPT?'background:#EAF3DE;color:#27500A;border-color:#C0DD97':'background:var(--bg-secondary);color:var(--text-tertiary);border-color:var(--border-light)'}">
             ${isNoPT?'✓ PT on':'No PT'}
+          </button>`:''}
+          ${!isOOO?`<button onclick="toggleAgentHoliday('${a}','${mDateStr}')"
+            style="font-size:11px;padding:2px 9px;border-radius:20px;cursor:pointer;font-family:var(--font);border:0.5px solid;${isHoliday?'background:#F4C0D1;color:#72243E;border-color:#E8A0BC':'background:var(--bg-secondary);color:var(--text-tertiary);border-color:var(--border-light)'}">
+            ${isHoliday?'✓ Working':'🎉 Holiday'}
           </button>`:''}
           <button onclick="toggleOOO('${a}','${mDateStr}')"
             style="font-size:11px;padding:2px 9px;border-radius:20px;cursor:pointer;font-family:var(--font);border:0.5px solid;${isOOO?'background:#EAF3DE;color:#27500A;border-color:#C0DD97':'background:var(--bg-secondary);color:var(--text-tertiary);border-color:var(--border-light)'}">
@@ -1629,7 +1657,7 @@ function closeCovModal(){document.getElementById('cov-modal').classList.remove('
 function resetSchedule(){
   if(!confirm('Reset all schedules to the original? This cannot be undone.'))return;
   sched=JSON.parse(JSON.stringify(BASE));fsched=JSON.parse(JSON.stringify(BF));
-  noOB={};noPT={};ooo={};schedOverrides={};friOverrides={1:{},2:{},3:{}};
+  noOB={};noPT={};noHoliday={};ooo={};schedOverrides={};friOverrides={1:{},2:{},3:{}};
   AGENTS.forEach(a=>{ooo[a]={};schedOverrides[a]={};[1,2,3].forEach(fw=>{friOverrides[fw][a]={};});});
   save();renderAll();
 }
@@ -2694,7 +2722,133 @@ function reqClearAll(){
   renderReviewList();
 }
 
-function renderAll(){renderManager();renderAgent();if(document.getElementById('view-coverage').classList.contains('active'))renderCovTab();updateReqBadge();}
+// ── Transfers Only Tracker ─────────────────────────────────────
+// Activities that count as Transfers Only state
+const TO_ACTIVITIES=new Set(['Outbound','Project Time','1:1','All Hands','Ticket Time','Weekly Sync']);
+const SLUSH_PER_DAY=20; // minutes
+
+function calcTransfersOnly(agent,day,fw){
+  const blocks=gBlocks(agent,day,fw);
+  // Only count if agent is working (not OOO)
+  const dateStr=toISO(dateOfDay(day,weekOffset));
+  if(ooo[agent]&&ooo[agent][dateStr]) return {mins:0,working:false};
+  const mins=blocks
+    .filter(b=>TO_ACTIVITIES.has(b[0]))
+    .reduce((s,b)=>s+(t2m(b[2])-t2m(b[1])),0);
+  // Agent is "working" if they have any blocks at all
+  const working=blocks.length>0;
+  return{mins,working};
+}
+
+function renderTransfersOnly(){
+  // Week nav
+  const mon=getMonday(weekOffset);
+  const fri=new Date(mon);fri.setDate(mon.getDate()+4);
+  const weekLabel=`${mon.toLocaleDateString('en-US',{month:'short',day:'numeric'})} – ${fri.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}`;
+  document.getElementById('to-week-nav').innerHTML=`
+    <div style="display:flex;align-items:center;gap:6px;width:100%;margin-bottom:8px">
+      <button onclick="weekOffset--;renderTransfersOnly();" style="padding:3px 10px;font-size:13px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);background:transparent;cursor:pointer;font-family:var(--font);color:var(--text-secondary)">‹</button>
+      <span style="font-size:12px;color:var(--text-tertiary);flex:1;text-align:center">${weekLabel}</span>
+      <button onclick="weekOffset++;renderTransfersOnly();" style="padding:3px 10px;font-size:13px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);background:transparent;cursor:pointer;font-family:var(--font);color:var(--text-secondary)">›</button>
+    </div>`;
+
+  const fmt=m=>{
+    if(m===0) return'—';
+    const h=Math.floor(m/60),mn=m%60;
+    return h>0?(mn>0?`${h}h ${mn}m`:`${h}h`):`${mn}m`;
+  };
+
+  // Build data: for each agent, each weekday
+  const data=AGENTS.map(agent=>{
+    const tz=ATZ[agent];
+    let weekTO=0,daysWorked=0;
+    const days=DAYS.map(day=>{
+      const fw=day==='Friday'?getFriWeekForDate(dateOfDay(day,weekOffset)):1;
+      const{mins,working}=calcTransfersOnly(agent,day,fw);
+      if(working) daysWorked++;
+      weekTO+=mins;
+      return{day,mins,working,fw};
+    });
+    const slushAllowed=daysWorked*SLUSH_PER_DAY;
+    return{agent,tz,days,weekTO,daysWorked,slushAllowed};
+  });
+
+  // Render
+  let html=`
+    <div class="alert-box a-info" style="margin-bottom:1rem">
+      <span><strong>Transfers Only</strong> includes: Outbound, Project Time, 1:1, All Hands, Ticket Time, Weekly Sync — any time not on phones, break, or lunch. <strong>Slush allowed: ${SLUSH_PER_DAY} min/day worked.</strong></span>
+    </div>`;
+
+  // Per-agent cards
+  data.forEach(({agent,tz,days,weekTO,daysWorked,slushAllowed})=>{
+    html+=`<div class="card" style="margin-bottom:1rem">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:1rem;flex-wrap:wrap;gap:6px">
+        <div style="font-size:14px;font-weight:500">${agent} <span style="font-size:11px;color:var(--text-tertiary);font-weight:400">${tz}</span></div>
+        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+          <span style="font-size:12px;color:var(--text-secondary)">TO time: <strong>${fmt(weekTO)}</strong></span>
+          <span style="font-size:12px;color:var(--text-secondary)">${daysWorked} day${daysWorked!==1?'s':''} worked · Slush: <strong>${fmt(slushAllowed)}</strong></span>
+        </div>
+      </div>
+
+      <!-- Day breakdown table -->
+      <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead>
+            <tr style="border-bottom:0.5px solid var(--border-light)">
+              <th style="text-align:left;padding:5px 8px;font-weight:500;color:var(--text-tertiary)">Day</th>
+              <th style="text-align:left;padding:5px 8px;font-weight:500;color:var(--text-tertiary)">Activities in TO state</th>
+              <th style="text-align:right;padding:5px 8px;font-weight:500;color:var(--text-tertiary)">TO time</th>
+              <th style="text-align:right;padding:5px 8px;font-weight:500;color:var(--text-tertiary)">Slush</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${days.map(({day,mins,working,fw})=>{
+              const d=dateOfDay(day,weekOffset);
+              const dateDisp=d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+              const isTod=isToday(day,weekOffset);
+              const blocks=gBlocks(agent,day,fw);
+              const toBlocks=blocks.filter(b=>TO_ACTIVITIES.has(b[0]));
+              const dateStr=toISO(d);
+              const isOOODay=ooo[agent]&&ooo[agent][dateStr];
+              const isHolDay=noHoliday[dateStr]&&noHoliday[dateStr][agent];
+              const daySlush=working?SLUSH_PER_DAY:0;
+              let statusTag='';
+              if(isOOODay) statusTag=`<span style="font-size:10px;background:#FAEEDA;color:#633806;padding:1px 5px;border-radius:4px;margin-left:4px">OOO</span>`;
+              else if(isHolDay) statusTag=`<span style="font-size:10px;background:#F4C0D1;color:#72243E;padding:1px 5px;border-radius:4px;margin-left:4px">Holiday</span>`;
+              return`<tr style="border-bottom:0.5px solid var(--border-light);${isTod?'background:var(--bg-secondary)':''}">
+                <td style="padding:6px 8px;font-weight:${isTod?'500':'400'}">${day.slice(0,3)} <span style="color:var(--text-tertiary)">${dateDisp}</span>${statusTag}</td>
+                <td style="padding:6px 8px;color:var(--text-secondary)">
+                  ${toBlocks.length?toBlocks.map(b=>{
+                    const c=COLORS[b[0]]||{bg:'#D3D1C7',text:'#444441'};
+                    const dur=t2m(b[2])-t2m(b[1]);
+                    return`<span style="display:inline-flex;align-items:center;gap:3px;margin-right:5px;margin-bottom:2px;background:${c.bg};color:${c.text};padding:1px 6px;border-radius:4px;font-size:11px">${b[0]} <span style="opacity:0.75">${fmt(dur)}</span></span>`;
+                  }).join(''):'<span style="color:var(--text-tertiary)">—</span>'}
+                </td>
+                <td style="padding:6px 8px;text-align:right;font-weight:500;color:${mins>daySlush?'#A32D2D':mins>0?'var(--text-primary)':'var(--text-tertiary)'}">${fmt(mins)}</td>
+                <td style="padding:6px 8px;text-align:right;color:var(--text-tertiary)">${daySlush?fmt(daySlush):'—'}</td>
+              </tr>`;
+            }).join('')}
+            <tr style="background:var(--bg-secondary);font-weight:500">
+              <td style="padding:6px 8px">Week total</td>
+              <td style="padding:6px 8px"></td>
+              <td style="padding:6px 8px;text-align:right">${fmt(weekTO)}</td>
+              <td style="padding:6px 8px;text-align:right">${fmt(slushAllowed)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+  });
+
+  document.getElementById('to-content').innerHTML=html;
+}
+
+function renderAll(){
+  renderManager();renderAgent();
+  if(document.getElementById('view-coverage').classList.contains('active'))renderCovTab();
+  if(document.getElementById('view-transfers').classList.contains('active'))renderTransfersOnly();
+  updateReqBadge();
+}
 
 // ── Copy from previous week ───────────────────────────────────
 let copySelection={mode:null,day:null}; // mode: 'day' or 'week'
@@ -2808,6 +2962,7 @@ function switchTab(tab){
   if(tabEl)tabEl.classList.add('active');
   document.getElementById(`view-${tab}`).classList.add('active');
   if(tab==='coverage')renderCovTab();
+  if(tab==='transfers')renderTransfersOnly();
   if(tab==='edit'){
     if(!document.getElementById('edit-week-offset').value)
       document.getElementById('edit-week-offset').value=weekOffset;
@@ -2828,6 +2983,10 @@ function switchTab(tab){
     renderMyRequests(agent);
   }
   if(tab==='review') renderReviewList();
+}
+
+function isToday(day,wo){
+  return toISO(dateOfDay(day,wo))===toISO(new Date());
 }
 
 setSS('loading');populateSelects();buildLegend();load();loadRequests();loadSlackSettings();
