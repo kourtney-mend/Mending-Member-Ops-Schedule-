@@ -123,6 +123,8 @@ select, input[type=time] { width: 100%; font-size: 13px; padding: 7px 9px; borde
   <div class="tabs">
     <button class="tab active" onclick="switchTab('manager')">Manager view</button>
     <button class="tab" onclick="switchTab('agent')">Agent view</button>
+    <button class="tab" onclick="switchTab('request')">Request change</button>
+    <button class="tab" onclick="requirePIN('review')">Review requests 🔒 <span id="req-badge" style="display:none;background:#E24B4A;color:white;font-size:10px;padding:1px 5px;border-radius:20px;margin-left:3px">0</span></button>
     <button class="tab" onclick="requirePIN('builder')">Schedule Builder 🔒</button>
     <button class="tab" onclick="requirePIN('edit')">Edit block 🔒</button>
     <button class="tab" onclick="switchTab('coverage')">Coverage check</button>
@@ -177,6 +179,208 @@ select, input[type=time] { width: 100%; font-size: 13px; padding: 7px 9px; borde
   <div id="view-coverage" class="view">
     <div class="day-select" id="cov-days"></div>
     <div id="cov-detail"></div>
+  </div>
+
+  <!-- REQUEST CHANGE -->
+  <div id="view-request" class="view">
+    <div class="alert-box a-info" style="margin-bottom:1rem">
+      <span>Submit a schedule change request. Your manager will review and approve or deny it. Approved changes will update your schedule automatically.</span>
+    </div>
+    <div class="card">
+      <div class="card-title">Submit a request</div>
+      <div class="form-row">
+        <div>
+          <label>Your name</label>
+          <select id="req-agent" onchange="onReqAgentChange()"><option>Ebony</option><option>Marisa</option><option>Ky</option></select>
+        </div>
+        <div>
+          <label>Request type</label>
+          <select id="req-type" onchange="onReqTypeChange()">
+            <option value="shift">Shift time change (different start/end)</option>
+            <option value="day">Day change (specific date)</option>
+            <option value="permanent">Permanent break/lunch change</option>
+            <option value="time">Additional time request</option>
+            <option value="earlyleave">Early leave + makeup time</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div>
+          <label id="req-date-label">Date requested</label>
+          <input type="date" id="req-date" style="width:100%;font-size:13px;padding:7px 9px;border:0.5px solid var(--border-mid);border-radius:var(--radius-md);background:var(--bg-primary);color:var(--text-primary);font-family:var(--font)">
+        </div>
+        <div id="req-day-wrap">
+          <label>Day of week (for permanent)</label>
+          <select id="req-day-of-week" style="width:100%;font-size:13px;padding:7px 9px;border:0.5px solid var(--border-mid);border-radius:var(--radius-md);background:var(--bg-primary);color:var(--text-primary);font-family:var(--font)">
+            <option>Monday</option><option>Tuesday</option><option>Wednesday</option><option>Thursday</option><option>Friday</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Standard: Proposed schedule blocks -->
+      <div id="req-blocks-panel" style="margin-bottom:1rem">
+        <label style="margin-bottom:6px;display:block">Proposed changes <span style="font-weight:400;color:var(--text-tertiary)">(describe what you'd like moved or added)</span></label>
+        <div id="req-blocks-list" style="display:flex;flex-direction:column;gap:5px;margin-bottom:8px"></div>
+        <div style="background:var(--bg-secondary);border-radius:var(--radius-md);padding:10px 12px">
+          <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:8px">Add a proposed block</div>
+          <div class="form-row three">
+            <div><label>Activity</label><select id="req-act"></select></div>
+            <div><label>Start time</label><input type="time" id="req-start"></div>
+            <div><label>End time</label><input type="time" id="req-end"></div>
+          </div>
+          <button class="bs" onclick="reqAddBlock()" style="margin-top:4px">+ Add</button>
+        </div>
+      </div>
+
+      <!-- Additional time request panel -->
+      <div id="req-time-panel" style="display:none;margin-bottom:1rem">
+        <div style="background:var(--bg-secondary);border-radius:var(--radius-md);padding:12px">
+          <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:10px">What additional time are you requesting?</div>
+          <div class="form-row">
+            <div>
+              <label>Activity</label>
+              <select id="req-time-act" style="width:100%;font-size:13px;padding:7px 9px;border:0.5px solid var(--border-mid);border-radius:var(--radius-md);background:var(--bg-primary);color:var(--text-primary);font-family:var(--font)">
+                <option>Ticket Time</option>
+                <option>Project Time</option>
+                <option>Outbound</option>
+              </select>
+            </div>
+            <div>
+              <label>Amount requested</label>
+              <select id="req-time-amount" style="width:100%;font-size:13px;padding:7px 9px;border:0.5px solid var(--border-mid);border-radius:var(--radius-md);background:var(--bg-primary);color:var(--text-primary);font-family:var(--font)">
+                <option value="15">15 minutes</option>
+                <option value="30">30 minutes</option>
+                <option value="45">45 minutes</option>
+                <option value="60">1 hour</option>
+                <option value="75">1 hr 15 min</option>
+                <option value="90">1 hr 30 min</option>
+                <option value="105">1 hr 45 min</option>
+                <option value="120">2 hours</option>
+              </select>
+            </div>
+          </div>
+          <div style="margin-top:10px">
+            <label>Frequency</label>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px">
+              <label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer"><input type="radio" name="req-time-freq" value="once" checked> This date only</label>
+              <label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer"><input type="radio" name="req-time-freq" value="weekly"> Every week going forward</label>
+            </div>
+          </div>
+          <div id="req-time-current" style="margin-top:10px;font-size:12px;color:var(--text-tertiary)"></div>
+        </div>
+      </div>
+
+      <!-- Shift time change panel -->
+      <div id="req-shift-panel" style="display:none;margin-bottom:1rem">
+        <div style="background:var(--bg-secondary);border-radius:var(--radius-md);padding:12px">
+          <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:10px">Requested start and end time</div>
+          <div class="form-row">
+            <div>
+              <label>New start time</label>
+              <input type="time" id="shift-start" style="width:100%;font-size:13px;padding:7px 9px;border:0.5px solid var(--border-mid);border-radius:var(--radius-md);background:var(--bg-primary);color:var(--text-primary);font-family:var(--font)">
+            </div>
+            <div>
+              <label>New end time</label>
+              <input type="time" id="shift-end" style="width:100%;font-size:13px;padding:7px 9px;border:0.5px solid var(--border-mid);border-radius:var(--radius-md);background:var(--bg-primary);color:var(--text-primary);font-family:var(--font)">
+            </div>
+          </div>
+          <div id="shift-preview" style="font-size:12px;color:var(--text-tertiary);margin-top:8px"></div>
+        </div>
+      </div>
+
+      <!-- Permanent change restriction notice -->
+      <div id="req-permanent-notice" style="display:none;margin-bottom:1rem">
+        <div class="alert-box a-info" style="margin-bottom:0">
+          <span>Permanent changes are limited to <strong>Break 1, Break 2, and Lunch</strong> timing. Use the block builder above to propose the new times for these activities.</span>
+        </div>
+      </div>
+
+      <!-- Early leave + makeup panel -->
+      <div id="req-earlyleave-panel" style="display:none;margin-bottom:1rem">
+        <div style="background:var(--bg-secondary);border-radius:var(--radius-md);padding:14px">
+          <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:12px">Early leave details</div>
+          <div class="form-row three">
+            <div>
+              <label>Leaving at</label>
+              <input type="time" id="el-leave-time" style="width:100%;font-size:13px;padding:7px 9px;border:0.5px solid var(--border-mid);border-radius:var(--radius-md);background:var(--bg-primary);color:var(--text-primary);font-family:var(--font)">
+            </div>
+            <div>
+              <label>Hours to make up</label>
+              <select id="el-hours" style="width:100%;font-size:13px;padding:7px 9px;border:0.5px solid var(--border-mid);border-radius:var(--radius-md);background:var(--bg-primary);color:var(--text-primary);font-family:var(--font)">
+                <option value="0.25">15 min</option><option value="0.5">30 min</option><option value="0.75">45 min</option>
+                <option value="1">1 hour</option><option value="1.5">1.5 hours</option><option value="2">2 hours</option>
+                <option value="2.5">2.5 hours</option><option value="3">3 hours</option><option value="4">4 hours</option>
+              </select>
+            </div>
+            <div>
+              <label>Makeup activity</label>
+              <select id="el-activity" style="width:100%;font-size:13px;padding:7px 9px;border:0.5px solid var(--border-mid);border-radius:var(--radius-md);background:var(--bg-primary);color:var(--text-primary);font-family:var(--font)">
+                <option>On Phones</option><option>Ticket Time</option><option>Project Time</option><option>Outbound</option>
+              </select>
+            </div>
+          </div>
+
+          <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin:12px 0 8px">Makeup days <span style="font-weight:400;color:var(--text-tertiary)">(must be same week — add up to total hours to make up)</span></div>
+          <div id="el-makeup-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px"></div>
+          <div style="background:var(--bg-primary);border-radius:var(--radius-md);padding:10px;border:0.5px solid var(--border-light)">
+            <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:8px">Add a makeup day</div>
+            <div class="form-row">
+              <div>
+                <label>Date</label>
+                <input type="date" id="el-mkup-date" style="width:100%;font-size:13px;padding:6px 8px;border:0.5px solid var(--border-mid);border-radius:var(--radius-md);background:var(--bg-primary);color:var(--text-primary);font-family:var(--font)">
+              </div>
+              <div>
+                <label>Hours on this day</label>
+                <select id="el-mkup-hours" style="width:100%;font-size:13px;padding:6px 8px;border:0.5px solid var(--border-mid);border-radius:var(--radius-md);background:var(--bg-primary);color:var(--text-primary);font-family:var(--font)">
+                  <option value="0.25">15 min</option><option value="0.5">30 min</option><option value="0.75">45 min</option>
+                  <option value="1">1 hour</option><option value="1.5">1.5 hours</option><option value="2">2 hours</option>
+                  <option value="2.5">2.5 hours</option><option value="3">3 hours</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-row" style="margin-top:6px">
+              <div>
+                <label>Before or after shift</label>
+                <select id="el-mkup-when" style="width:100%;font-size:13px;padding:6px 8px;border:0.5px solid var(--border-mid);border-radius:var(--radius-md);background:var(--bg-primary);color:var(--text-primary);font-family:var(--font)">
+                  <option value="before">Before shift</option>
+                  <option value="after">After shift</option>
+                </select>
+              </div>
+              <div style="display:flex;align-items:flex-end">
+                <button class="bs" onclick="elAddMakeupDay()" style="width:100%">+ Add day</button>
+              </div>
+            </div>
+          </div>
+          <div id="el-total" style="font-size:12px;color:var(--text-tertiary);margin-top:8px"></div>
+        </div>
+      </div>
+
+      <div style="margin-bottom:1rem">
+        <label>Additional notes <span style="font-weight:400;color:var(--text-tertiary)">(optional)</span></label>
+        <textarea id="req-notes" rows="2" style="width:100%;font-size:13px;padding:7px 9px;border:0.5px solid var(--border-mid);border-radius:var(--radius-md);background:var(--bg-primary);color:var(--text-primary);font-family:var(--font);resize:vertical;margin-top:4px" placeholder="e.g. Doctor appointment, leaving at 3pm..."></textarea>
+      </div>
+
+      <div class="btn-row">
+        <button class="bp" onclick="submitRequest()">Submit request</button>
+        <button class="bs" onclick="reqClear()">Clear</button>
+      </div>
+      <div id="req-status" style="font-size:12px;margin-top:8px"></div>
+    </div>
+
+    <!-- My submitted requests -->
+    <div class="card">
+      <div class="card-title">My submitted requests</div>
+      <div id="req-my-list"><p style="font-size:13px;color:var(--text-tertiary)">No requests submitted yet.</p></div>
+    </div>
+  </div>
+
+  <!-- REVIEW REQUESTS (manager) -->
+  <div id="view-review" class="view">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+      <div style="font-size:13px;color:var(--text-secondary)" id="review-summary"></div>
+      <button class="bs" onclick="reqClearAll()" style="font-size:12px">Clear all resolved</button>
+    </div>
+    <div id="review-list"></div>
   </div>
 
   <!-- SCHEDULE BUILDER -->
@@ -1184,7 +1388,7 @@ function onAddDayChange(){
   updateEditDateDisplay();
 }
 function populateSelects(){
-  ['edit-activity','add-activity','builder-act','bam-act','bam-add-act'].forEach(id=>{
+  ['edit-activity','add-activity','builder-act','bam-act','bam-add-act','req-act'].forEach(id=>{
     const el=document.getElementById(id);
     if(el) el.innerHTML=ACTIVITIES.map(a=>`<option>${a}</option>`).join('');
   });
@@ -1781,7 +1985,592 @@ function closeBam(){
   bam={};
 }
 
-function renderAll(){renderManager();renderAgent();if(document.getElementById('view-coverage').classList.contains('active'))renderCovTab();}
+// ── Schedule Change Requests ──────────────────────────────────
+const RQK='mending-requests-v2';
+let requests=[]; // [{id,agent,type,date,dayOfWeek,blocks,notes,status,submittedAt,resolvedAt,managerNote}]
+let reqBlocks=[]; // blocks being built for current request
+
+function saveRequests(){localStorage.setItem(RQK,JSON.stringify(requests));}
+function loadRequests(){
+  try{const r=localStorage.getItem(RQK);if(r)requests=JSON.parse(r);}catch(e){}
+  updateReqBadge();
+}
+
+function updateReqBadge(){
+  const pending=requests.filter(r=>r.status==='pending').length;
+  const badge=document.getElementById('req-badge');
+  if(!badge)return;
+  if(pending>0){badge.style.display='inline';badge.textContent=pending;}
+  else{badge.style.display='none';}
+}
+
+function updateShiftPreview(){
+  const agent=document.getElementById('req-agent').value;
+  const date=document.getElementById('req-date').value;
+  const ns=document.getElementById('shift-start').value;
+  const ne=document.getElementById('shift-end').value;
+  const el=document.getElementById('shift-preview');
+  if(!el) return;
+  if(!ns||!ne||!date){el.textContent='';return;}
+  const d=new Date(date+'T12:00:00');
+  const dayName=d.toLocaleDateString('en-US',{weekday:'long'});
+  if(!DAYS.includes(dayName)){el.textContent='Weekdays only';return;}
+  // Find current shift start/end
+  const savedWO=weekOffset;
+  for(let wo=-52;wo<=52;wo++){if(toISO(dateOfDay(dayName,wo))===date){weekOffset=wo;break;}}
+  const fw=dayName==='Friday'?getFriWeekForDate(d):1;
+  const blocks=getRawBlocks(agent,dayName,fw);
+  weekOffset=savedWO;
+  if(!blocks.length){el.textContent='No schedule found for this date.';return;}
+  const curStart=Math.min(...blocks.map(b=>t2m(b[1])));
+  const curEnd=Math.max(...blocks.map(b=>t2m(b[2])));
+  const offsetMins=t2m(ns)-curStart;
+  const tz=ATZ[agent];
+  const sign=offsetMins>=0?'+':'';
+  el.innerHTML=`Current shift: ${m2d(curStart)}–${m2d(curEnd)} ${tz} · Offset: <strong>${sign}${offsetMins} min</strong> · New shift: <strong>${m2d(t2m(ns))}–${m2d(t2m(ne))} ${tz}</strong>`;
+}
+
+function onReqAgentChange(){
+  const type=document.getElementById('req-type').value;
+  if(type==='time') updateReqTimeCurrent();
+}
+
+function onReqTypeChange(){
+  const type=document.getElementById('req-type').value;
+  const wrap=document.getElementById('req-day-wrap');
+  const dateLabel=document.getElementById('req-date-label');
+  const blocksPanel=document.getElementById('req-blocks-panel');
+  const timePanel=document.getElementById('req-time-panel');
+  const elPanel=document.getElementById('req-earlyleave-panel');
+  const permNotice=document.getElementById('req-permanent-notice');
+  const shiftPanel=document.getElementById('req-shift-panel');
+
+  const labels={shift:'Date of shift',day:'Date requested',permanent:'Starting from date',time:'Date requested',earlyleave:'Date leaving early'};
+  dateLabel.textContent=labels[type]||'Date requested';
+  wrap.style.display=type==='permanent'?'block':'none';
+  blocksPanel.style.display=(type==='day'||type==='permanent')?'block':'none';
+  timePanel.style.display=type==='time'?'block':'none';
+  elPanel.style.display=type==='earlyleave'?'block':'none';
+  permNotice.style.display=type==='permanent'?'block':'none';
+  shiftPanel.style.display=type==='shift'?'block':'none';
+
+  if(type==='time') updateReqTimeCurrent();
+  if(type==='earlyleave') updateElTotal();
+  if(type==='shift') updateShiftPreview();
+}
+
+function updateReqTimeCurrent(){
+  const agent=document.getElementById('req-agent').value;
+  const date=document.getElementById('req-date').value;
+  const act=document.getElementById('req-time-act')?.value;
+  const el=document.getElementById('req-time-current');
+  if(!el||!date||!act) return;
+  const d=new Date(date+'T12:00:00');
+  const dayName=d.toLocaleDateString('en-US',{weekday:'long'});
+  if(!DAYS.includes(dayName)){el.textContent='';return;}
+  // Find current amount of this activity in their schedule
+  const savedWO=weekOffset;
+  for(let wo=-52;wo<=52;wo++){
+    if(toISO(dateOfDay(dayName,wo))===date){weekOffset=wo;break;}
+  }
+  const fw=dayName==='Friday'?getFriWeekForDate(d):1;
+  const blocks=getRawBlocks(agent,dayName,fw);
+  weekOffset=savedWO;
+  const totalMins=blocks.filter(b=>b[0]===act).reduce((s,b)=>s+(t2m(b[2])-t2m(b[1])),0);
+  el.textContent=totalMins>0
+    ?`Current ${act} on ${dayName}: ${totalMins >= 60 ? Math.floor(totalMins/60)+'h '+(totalMins%60?totalMins%60+'m':'') : totalMins+'m'}`
+    :`No ${act} currently scheduled on ${dayName}`;
+}
+
+function reqAddBlock(){
+  const act=document.getElementById('req-act').value;
+  const s=document.getElementById('req-start').value;
+  const e=document.getElementById('req-end').value;
+  if(!s||!e){alert('Please enter start and end times.');return;}
+  if(t2m(e)<=t2m(s)){alert('End must be after start.');return;}
+  reqBlocks.push([act,s,e]);
+  renderReqBlocks();
+  document.getElementById('req-start').value='';
+  document.getElementById('req-end').value='';
+}
+
+function renderReqBlocks(){
+  const agent=document.getElementById('req-agent').value;
+  const tz=ATZ[agent];
+  document.getElementById('req-blocks-list').innerHTML=reqBlocks.map((b,i)=>{
+    const c=COLORS[b[0]]||{bg:'#D3D1C7',text:'#444441'};
+    return`<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:var(--radius-md);background:var(--bg-secondary)">
+      <div style="width:10px;height:10px;border-radius:2px;flex-shrink:0;background:${c.bg}"></div>
+      <span style="flex:1;font-size:13px"><strong>${b[0]}</strong> <span style="color:var(--text-tertiary)">${m2d(t2m(b[1]))}–${m2d(t2m(b[2]))} ${tz}</span></span>
+      <button onclick="reqRemoveBlock(${i})" style="font-size:12px;padding:1px 7px;border:0.5px solid var(--border-mid);border-radius:4px;cursor:pointer;background:transparent;font-family:var(--font)">×</button>
+    </div>`;
+  }).join('');
+}
+
+function reqRemoveBlock(i){reqBlocks.splice(i,1);renderReqBlocks();}
+
+function reqClear(){
+  reqBlocks=[];
+  renderReqBlocks();
+  document.getElementById('req-notes').value='';
+  document.getElementById('req-date').value='';
+  document.getElementById('req-status').textContent='';
+}
+
+// ── Early leave + makeup ──────────────────────────────────────
+let elMakeupDays=[]; // [{date, hours, when}]
+
+function elAddMakeupDay(){
+  const date=document.getElementById('el-mkup-date').value;
+  const hours=parseFloat(document.getElementById('el-mkup-hours').value);
+  const when=document.getElementById('el-mkup-when').value;
+  if(!date){alert('Please select a makeup date.');return;}
+  // Check same week as leave date
+  const leaveDate=document.getElementById('req-date').value;
+  if(leaveDate&&date){
+    const ld=new Date(leaveDate+'T12:00:00');
+    const md=new Date(date+'T12:00:00');
+    const ldMon=new Date(ld);ldMon.setDate(ld.getDate()-(ld.getDay()===0?6:ld.getDay()-1));
+    const mdMon=new Date(md);mdMon.setDate(md.getDate()-(md.getDay()===0?6:md.getDay()-1));
+    if(ldMon.toDateString()!==mdMon.toDateString()){alert('Makeup days must be in the same week as the early leave date.');return;}
+    if(date===leaveDate){alert('Makeup date cannot be the same as the leave date.');return;}
+  }
+  if(elMakeupDays.find(d=>d.date===date)){alert('That date is already added.');return;}
+  elMakeupDays.push({date,hours,when});
+  renderElMakeupDays();
+  document.getElementById('el-mkup-date').value='';
+}
+
+function renderElMakeupDays(){
+  const list=document.getElementById('el-makeup-list');
+  list.innerHTML=elMakeupDays.map((d,i)=>{
+    const disp=new Date(d.date+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+    const hLabel=d.hours>=1?d.hours+'h':(d.hours*60)+'m';
+    return`<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:var(--radius-md);background:var(--bg-primary);border:0.5px solid var(--border-light);font-size:13px">
+      <span style="flex:1"><strong>${disp}</strong> · ${hLabel} ${d.when} shift</span>
+      <button onclick="elRemoveMakeupDay(${i})" style="font-size:12px;padding:1px 7px;border:0.5px solid var(--border-mid);border-radius:4px;cursor:pointer;background:transparent;font-family:var(--font)">×</button>
+    </div>`;
+  }).join('');
+  updateElTotal();
+}
+
+function elRemoveMakeupDay(i){elMakeupDays.splice(i,1);renderElMakeupDays();}
+
+function updateElTotal(){
+  const requested=parseFloat(document.getElementById('el-hours')?.value||0);
+  const committed=elMakeupDays.reduce((s,d)=>s+d.hours,0);
+  const el=document.getElementById('el-total');
+  if(!el)return;
+  const fmt=h=>h>=1?h+'h':(h*60)+'m';
+  if(elMakeupDays.length===0){el.textContent='';return;}
+  const diff=Math.round((committed-requested)*100)/100;
+  if(diff<0) el.innerHTML=`<span style="color:#A32D2D">⚠ ${fmt(committed)} committed of ${fmt(requested)} needed — ${fmt(Math.abs(diff))} still needed</span>`;
+  else if(diff>0) el.innerHTML=`<span style="color:#BA7517">⚠ ${fmt(committed)} committed — ${fmt(diff)} over the required ${fmt(requested)}</span>`;
+  else el.innerHTML=`<span style="color:#27500A">✓ ${fmt(committed)} committed — matches ${fmt(requested)} required</span>`;
+}
+
+function submitRequest(){
+  const agent=document.getElementById('req-agent').value;
+  const type=document.getElementById('req-type').value;
+  const date=document.getElementById('req-date').value;
+  const dayOfWeek=document.getElementById('req-day-of-week').value;
+  const notes=document.getElementById('req-notes').value.trim();
+  if(!date){alert('Please select a date.');return;}
+
+  let timeAct=null,timeMinutes=0,timeFreq='once';
+  let elLeaveTime=null,elHours=0,elActivity=null,elMakeup=[];
+  let shiftNewStart=null,shiftNewEnd=null;
+
+  if(type==='shift'){
+    shiftNewStart=document.getElementById('shift-start').value;
+    shiftNewEnd=document.getElementById('shift-end').value;
+    if(!shiftNewStart||!shiftNewEnd){alert('Please enter both a new start and end time.');return;}
+    if(t2m(shiftNewEnd)<=t2m(shiftNewStart)){alert('End time must be after start time.');return;}
+  } else if(type==='time'){
+    timeAct=document.getElementById('req-time-act').value;
+    timeMinutes=parseInt(document.getElementById('req-time-amount').value);
+    timeFreq=document.querySelector('input[name="req-time-freq"]:checked')?.value||'once';
+    if(!timeAct||!timeMinutes){alert('Please select an activity and amount.');return;}
+  } else if(type==='earlyleave'){
+    elLeaveTime=document.getElementById('el-leave-time').value;
+    elHours=parseFloat(document.getElementById('el-hours').value);
+    elActivity=document.getElementById('el-activity').value;
+    if(!elLeaveTime){alert('Please enter the time you plan to leave.');return;}
+    if(elMakeupDays.length===0){alert('Please add at least one makeup day.');return;}
+    elMakeup=JSON.parse(JSON.stringify(elMakeupDays));
+  } else {
+    if(reqBlocks.length===0&&!notes){alert('Please add at least one proposed block or a note.');return;}
+  }
+
+  const req={
+    id:'req-'+Date.now(),
+    agent,type,date,dayOfWeek,
+    blocks:type==='time'||type==='earlyleave'||type==='shift'?[]:JSON.parse(JSON.stringify(reqBlocks)),
+    notes,status:'pending',
+    submittedAt:new Date().toISOString(),resolvedAt:null,managerNote:'',
+    timeAct,timeMinutes,timeFreq,approvedMinutes:null,
+    elLeaveTime,elHours,elActivity,elMakeup,elMakeupStatus:{},
+    shiftNewStart,shiftNewEnd,
+  };
+  requests.push(req);
+  saveRequests();updateReqBadge();reqClear();
+  elMakeupDays=[];renderElMakeupDays();
+  const dateDisp=new Date(date+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'});
+  document.getElementById('req-status').innerHTML=`<span style="color:#27500A">✓ Request submitted for ${dateDisp}. Your manager will review it shortly.</span>`;
+  renderMyRequests(agent);
+}
+
+function renderMyRequests(agent){
+  const mine=requests.filter(r=>r.agent===agent).sort((a,b)=>b.submittedAt.localeCompare(a.submittedAt));
+  const el=document.getElementById('req-my-list');
+  if(!mine.length){el.innerHTML='<p style="font-size:13px;color:var(--text-tertiary)">No requests submitted yet.</p>';return;}
+  el.innerHTML=mine.map(r=>{
+    const statusColor={pending:'#BA7517',approved:'#27500A',denied:'#A32D2D',countered:'#185FA5'}[r.status]||'#888';
+    const statusBg={pending:'#FAEEDA',approved:'#EAF3DE',denied:'#FCEBEB',countered:'#E6F1FB'}[r.status]||'#eee';
+    const dateDisp=new Date(r.date+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+    const typeLabel={shift:'Shift time change',day:'Day change',permanent:'Permanent break/lunch',time:'Additional time',earlyleave:'Early leave + makeup'}[r.type]||r.type;
+    let detail='';
+    if(r.type==='shift'&&r.shiftNewStart){
+      const tz=ATZ[r.agent];
+      detail=`<div style="font-size:12px;color:var(--text-secondary);margin-bottom:3px">Requested: <strong>${m2d(t2m(r.shiftNewStart))}–${m2d(t2m(r.shiftNewEnd))} ${tz}</strong> — entire schedule shifted</div>`;
+    } else if(r.type==='time'){
+      const mins=m=>m>=60?Math.floor(m/60)+'h '+(m%60?m%60+'m':''):m+'m';
+      detail=`<div style="font-size:12px;color:var(--text-secondary);margin-bottom:3px">Requested: <strong>${mins(r.timeMinutes)}</strong> of ${r.timeAct} · ${r.timeFreq==='weekly'?'Every week going forward':'This date only'}</div>`;
+      if(r.approvedMinutes!=null&&r.approvedMinutes!==r.timeMinutes)
+        detail+=`<div style="font-size:12px;color:#185FA5">Manager countered: <strong>${mins(r.approvedMinutes)}</strong></div>`;
+    } else if(r.type==='earlyleave'){
+      const fmt=h=>h>=1?h+'h':(h*60)+'m';
+      const leaveDisp=r.elLeaveTime?m2d(t2m(r.elLeaveTime)):'?';
+      detail=`<div style="font-size:12px;color:var(--text-secondary);margin-bottom:3px">Leaving at <strong>${leaveDisp}</strong> · Making up <strong>${fmt(r.elHours)}</strong> as ${r.elActivity}</div>`;
+      if(r.elMakeup&&r.elMakeup.length){
+        const mkupStatus=(r.elMakeupStatus||{});
+        detail+=`<div style="font-size:12px;color:var(--text-tertiary);margin-top:3px">${r.elMakeup.map(d=>{
+          const disp=new Date(d.date+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+          const ds=mkupStatus[d.date];
+          const st=ds?.status||'pending';
+          const stC={approved:'#27500A',denied:'#A32D2D',pending:'#BA7517'}[st];
+          return`${disp} <span style="color:${stC}">(${st})</span>`;
+        }).join(' · ')}</div>`;
+      }
+    } else if(r.blocks.length){
+      detail=`<div style="font-size:12px;color:var(--text-secondary);margin-bottom:3px">Proposed: ${r.blocks.map(b=>`${b[0]} ${m2d(t2m(b[1]))}–${m2d(t2m(b[2]))}`).join(', ')}</div>`;
+    }
+    return`<div style="border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:10px 14px;margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <span style="font-size:13px;font-weight:500">${typeLabel} · ${dateDisp}</span>
+        <span style="font-size:11px;padding:2px 8px;border-radius:20px;font-weight:500;background:${statusBg};color:${statusColor}">${r.status}</span>
+      </div>
+      ${detail}
+      ${r.notes?`<div style="font-size:12px;color:var(--text-secondary)">"${r.notes}"</div>`:''}
+      ${r.managerNote?`<div style="font-size:12px;color:var(--text-tertiary);margin-top:4px">Manager: "${r.managerNote}"</div>`:''}
+    </div>`;
+  }).join('');
+}
+
+// ── Manager review ────────────────────────────────────────────
+function renderReviewList(){
+  const el=document.getElementById('review-list');
+  const summary=document.getElementById('review-summary');
+  if(!el)return;
+  const sorted=[...requests].sort((a,b)=>{
+    if(a.status==='pending'&&b.status!=='pending')return -1;
+    if(a.status!=='pending'&&b.status==='pending')return 1;
+    return b.submittedAt.localeCompare(a.submittedAt);
+  });
+  const pending=requests.filter(r=>r.status==='pending').length;
+  summary.textContent=`${pending} pending · ${requests.length} total`;
+  if(!sorted.length){el.innerHTML='<p style="font-size:13px;color:var(--text-tertiary)">No requests yet.</p>';return;}
+  const mins=m=>m>=60?Math.floor(m/60)+'h '+(m%60?m%60+'m':''):m+'m';
+  el.innerHTML=sorted.map(r=>{
+    const statusColor={pending:'#BA7517',approved:'#27500A',denied:'#A32D2D',countered:'#185FA5'}[r.status]||'#888';
+    const statusBg={pending:'#FAEEDA',approved:'#EAF3DE',denied:'#FCEBEB',countered:'#E6F1FB'}[r.status]||'#eee';
+    const dateDisp=new Date(r.date+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric',year:'numeric'});
+    const typeLabel={shift:'Shift time change',day:'Day change',permanent:`Permanent break/lunch · ${r.dayOfWeek}s`,time:'Additional time',earlyleave:'Early leave + makeup'}[r.type]||r.type;
+    const tz=ATZ[r.agent];
+    const subDate=new Date(r.submittedAt).toLocaleDateString('en-US',{month:'short',day:'numeric'});
+    let detailHTML='', actionHTML='';
+
+    if(r.type==='shift'){
+      const tz=ATZ[r.agent];
+      detailHTML=`<div style="background:var(--bg-secondary);border-radius:var(--radius-md);padding:10px 12px;margin-bottom:8px;font-size:13px">
+        <div style="font-size:11px;font-weight:500;color:var(--text-tertiary);margin-bottom:5px">SHIFT TIME CHANGE</div>
+        <div>Requested start: <strong>${m2d(t2m(r.shiftNewStart))} ${tz}</strong></div>
+        <div>Requested end: <strong>${m2d(t2m(r.shiftNewEnd))} ${tz}</strong></div>
+        <div style="font-size:11px;color:var(--text-tertiary);margin-top:4px">Entire schedule will be shifted to match — activities and durations unchanged</div>
+      </div>`;
+      if(r.status==='pending'){
+        actionHTML=`<div style="margin-bottom:8px"><input type="text" placeholder="Optional note to agent..." id="mgr-note-${r.id}" style="width:100%;font-size:12px;padding:6px 9px;border:0.5px solid var(--border-mid);border-radius:var(--radius-md);background:var(--bg-primary);color:var(--text-primary);font-family:var(--font)"></div>
+          <div class="btn-row">
+            <button class="bp" onclick="resolveRequest('${r.id}','approved')" style="background:#27500A;border-color:#27500A">✓ Approve shift</button>
+            <button class="bd" onclick="resolveRequest('${r.id}','denied')">✗ Deny</button>
+          </div>`;
+      } else {
+        actionHTML=`<div style="font-size:12px;color:var(--text-tertiary)">Resolved ${r.resolvedAt?new Date(r.resolvedAt).toLocaleDateString('en-US',{month:'short',day:'numeric'}):''}${r.managerNote?' · "'+r.managerNote+'"':''}</div>`;
+      }
+    } else if(r.type==='time'){
+      detailHTML=`<div style="background:var(--bg-secondary);border-radius:var(--radius-md);padding:10px 12px;margin-bottom:8px;font-size:13px">
+        <div style="font-size:11px;font-weight:500;color:var(--text-tertiary);margin-bottom:5px">TIME REQUEST</div>
+        <div>Activity: <strong>${r.timeAct}</strong></div>
+        <div>Requested: <strong>${mins(r.timeMinutes)}</strong> · ${r.timeFreq==='weekly'?'Every week going forward':'This date only'}</div>
+      </div>`;
+      if(r.status==='pending'){
+        actionHTML=`<div style="margin-bottom:10px">
+          <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:6px">Grant amount (or counter)</div>
+          <select id="counter-amt-${r.id}" style="font-size:13px;padding:5px 8px;border:0.5px solid var(--border-mid);border-radius:var(--radius-md);background:var(--bg-primary);color:var(--text-primary);font-family:var(--font);margin-bottom:8px">
+            <option value="15">15 min</option><option value="30">30 min</option><option value="45">45 min</option>
+            <option value="60">1 hour</option><option value="75">1h 15m</option><option value="90">1h 30m</option>
+            <option value="105">1h 45m</option><option value="120">2 hours</option>
+          </select>
+          <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:6px">Place on schedule at (optional)</div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <input type="time" id="place-start-${r.id}" style="font-size:13px;padding:5px 8px;border:0.5px solid var(--border-mid);border-radius:var(--radius-md);background:var(--bg-primary);color:var(--text-primary);font-family:var(--font)">
+            <span style="font-size:11px;color:var(--text-tertiary)">End auto-calculated · leave blank to approve without placing</span>
+          </div>
+        </div>
+        <div style="margin-bottom:8px">
+          <input type="text" placeholder="Optional note to agent..." id="mgr-note-${r.id}" style="width:100%;font-size:12px;padding:6px 9px;border:0.5px solid var(--border-mid);border-radius:var(--radius-md);background:var(--bg-primary);color:var(--text-primary);font-family:var(--font)">
+        </div>
+        <div class="btn-row">
+          <button class="bp" onclick="resolveTimeRequest('${r.id}','approved')" style="background:#27500A;border-color:#27500A">✓ Approve</button>
+          <button class="bd" onclick="resolveRequest('${r.id}','denied')">✗ Deny</button>
+        </div>`;
+      } else {
+        actionHTML=`<div style="font-size:12px;color:var(--text-tertiary)">${r.approvedMinutes!=null?`Granted: ${mins(r.approvedMinutes)} · `:''}Resolved ${r.resolvedAt?new Date(r.resolvedAt).toLocaleDateString('en-US',{month:'short',day:'numeric'}):''}${r.managerNote?' · "'+r.managerNote+'"':''}</div>`;
+      }
+    } else if(r.type==='earlyleave'){
+      const fmt=h=>h>=1?h+'h':(h*60)+'m';
+      const leaveDisp=r.elLeaveTime?m2d(t2m(r.elLeaveTime)):'?';
+      detailHTML=`<div style="background:var(--bg-secondary);border-radius:var(--radius-md);padding:10px 12px;margin-bottom:8px;font-size:13px">
+        <div style="font-size:11px;font-weight:500;color:var(--text-tertiary);margin-bottom:5px">EARLY LEAVE</div>
+        <div>Leaving at: <strong>${leaveDisp} ${tz}</strong> · Make up: <strong>${fmt(r.elHours)}</strong></div>
+        <div>Makeup activity: <strong>${r.elActivity}</strong></div>
+      </div>
+      <div style="margin-bottom:8px">
+        <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:6px">Approve makeup days individually</div>
+        ${(r.elMakeup||[]).map(d=>{
+          const disp=new Date(d.date+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+          const ds=req?r.elMakeupStatus||{}:{};
+          const dayStatus=ds[d.date];
+          const statusC=dayStatus?.status==='approved'?'#27500A':dayStatus?.status==='denied'?'#A32D2D':'#BA7517';
+          const statusB=dayStatus?.status==='approved'?'#EAF3DE':dayStatus?.status==='denied'?'#FCEBEB':'#FAEEDA';
+          const statusT=dayStatus?.status||'pending';
+          return`<div style="border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:8px 10px;margin-bottom:6px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+              <span style="font-size:13px"><strong>${disp}</strong> · ${fmt(d.hours)} ${d.when} shift</span>
+              <span style="font-size:11px;padding:1px 7px;border-radius:20px;font-weight:500;background:${statusB};color:${statusC}">${statusT}</span>
+            </div>
+            ${!dayStatus?`<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+              <select id="el-act-${r.id}-${d.date}" style="font-size:12px;padding:4px 7px;border:0.5px solid var(--border-mid);border-radius:var(--radius-md);background:var(--bg-primary);color:var(--text-primary);font-family:var(--font)">
+                <option${r.elActivity==='On Phones'?' selected':''}>On Phones</option>
+                <option${r.elActivity==='Ticket Time'?' selected':''}>Ticket Time</option>
+                <option${r.elActivity==='Project Time'?' selected':''}>Project Time</option>
+                <option${r.elActivity==='Outbound'?' selected':''}>Outbound</option>
+              </select>
+              <button class="bp" onclick="resolveEarlyLeaveDay('${r.id}','${d.date}','approved')" style="font-size:12px;padding:4px 10px;background:#27500A;border-color:#27500A">✓ Approve</button>
+              <button class="bd" onclick="resolveEarlyLeaveDay('${r.id}','${d.date}','denied')" style="font-size:12px;padding:4px 10px">✗ Deny</button>
+            </div>`:`<div style="font-size:11px;color:var(--text-tertiary)">Activity: ${dayStatus.approvedActivity||r.elActivity}</div>`}
+          </div>`;
+        }).join('')}
+      </div>`;
+      actionHTML=`<div style="margin-bottom:8px"><input type="text" placeholder="Overall note to agent..." id="mgr-note-${r.id}" style="width:100%;font-size:12px;padding:6px 9px;border:0.5px solid var(--border-mid);border-radius:var(--radius-md);background:var(--bg-primary);color:var(--text-primary);font-family:var(--font)"></div>
+        <div class="btn-row"><button class="bd" onclick="resolveRequest('${r.id}','denied')">✗ Deny all</button></div>`;
+    } else {
+      detailHTML=`${r.blocks.length?`<div style="background:var(--bg-secondary);border-radius:var(--radius-md);padding:8px 10px;margin-bottom:8px">
+        <div style="font-size:11px;font-weight:500;color:var(--text-tertiary);margin-bottom:4px">PROPOSED BLOCKS</div>
+        ${r.blocks.map(b=>{const c=COLORS[b[0]]||{bg:'#D3D1C7',text:'#444441'};return`<div style="display:flex;align-items:center;gap:6px;font-size:12px;margin-bottom:3px"><div style="width:8px;height:8px;border-radius:2px;background:${c.bg}"></div><strong>${b[0]}</strong> <span style="color:var(--text-tertiary)">${m2d(t2m(b[1]))}–${m2d(t2m(b[2]))} ${tz}</span></div>`;}).join('')}
+      </div>`:''}${r.notes?`<div style="font-size:13px;color:var(--text-secondary);margin-bottom:8px;font-style:italic">"${r.notes}"</div>`:''}`;
+      if(r.status==='pending'){
+        actionHTML=`<div style="margin-bottom:8px"><input type="text" placeholder="Optional note to agent..." id="mgr-note-${r.id}" style="width:100%;font-size:12px;padding:6px 9px;border:0.5px solid var(--border-mid);border-radius:var(--radius-md);background:var(--bg-primary);color:var(--text-primary);font-family:var(--font)"></div>
+        <div class="btn-row">
+          <button class="bp" onclick="resolveRequest('${r.id}','approved')" style="background:#27500A;border-color:#27500A">✓ Approve</button>
+          <button class="bd" onclick="resolveRequest('${r.id}','denied')">✗ Deny</button>
+        </div>`;
+      } else {
+        actionHTML=`<div style="font-size:12px;color:var(--text-tertiary)">Resolved ${r.resolvedAt?new Date(r.resolvedAt).toLocaleDateString('en-US',{month:'short',day:'numeric'}):''}${r.managerNote?' · "'+r.managerNote+'"':''}</div>`;
+      }
+    }
+
+    return`<div style="border:0.5px solid var(--border-light);border-radius:var(--radius-lg);padding:14px;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;flex-wrap:wrap;gap:6px">
+        <div><span style="font-size:14px;font-weight:500">${r.agent}</span> <span style="font-size:12px;color:var(--text-tertiary);margin-left:6px">${typeLabel}</span></div>
+        <span style="font-size:11px;padding:2px 9px;border-radius:20px;font-weight:500;background:${statusBg};color:${statusColor}">${r.status}</span>
+      </div>
+      <div style="font-size:13px;color:var(--text-secondary);margin-bottom:8px">📅 ${dateDisp} <span style="color:var(--text-tertiary);font-size:11px">· submitted ${subDate}</span></div>
+      ${detailHTML}${actionHTML}
+    </div>`;
+  }).join('');
+}
+
+function resolveTimeRequest(id,status){
+  const req=requests.find(r=>r.id===id);
+  if(!req)return;
+  const noteEl=document.getElementById(`mgr-note-${id}`);
+  req.managerNote=noteEl?noteEl.value.trim():'';
+  const amtEl=document.getElementById(`counter-amt-${id}`);
+  const startEl=document.getElementById(`place-start-${id}`);
+  req.approvedMinutes=amtEl?parseInt(amtEl.value):req.timeMinutes;
+  req.status=status;
+  req.resolvedAt=new Date().toISOString();
+
+  if(status==='approved'){
+    const startTime=startEl?startEl.value:'';
+    const d=new Date(req.date+'T12:00:00');
+    const dayName=d.toLocaleDateString('en-US',{weekday:'long'});
+    const applyDates=[];
+
+    if(req.timeFreq==='weekly'){
+      // Apply to all future weeks for this day from req.date
+      for(let wo=-52;wo<=52;wo++){
+        const ds=toISO(dateOfDay(dayName,wo));
+        if(ds>=req.date) applyDates.push({ds,dayName});
+      }
+    } else {
+      applyDates.push({ds:req.date,dayName});
+    }
+
+    applyDates.forEach(({ds,dayName})=>{
+      if(startTime){
+        // Place the block at specified start time
+        const endMins=t2m(startTime)+req.approvedMinutes;
+        const endTime=m2t(endMins);
+        const savedWO=weekOffset;
+        for(let wo=-52;wo<=52;wo++){if(toISO(dateOfDay(dayName,wo))===ds){weekOffset=wo;break;}}
+        const fw=dayName==='Friday'?getFriWeekForDate(d):1;
+        const blocks=JSON.parse(JSON.stringify(getRawBlocks(req.agent,dayName,fw)));
+        weekOffset=savedWO;
+        blocks.push([req.timeAct,startTime,endTime]);
+        blocks.sort((a,b)=>t2m(a[1])-t2m(b[1]));
+        if(!schedOverrides[req.agent])schedOverrides[req.agent]={};
+        schedOverrides[req.agent][ds]=blocks;
+      }
+      // If no start time, just approve the amount — manager can place later via Schedule Builder
+    });
+    save();
+  }
+
+  saveRequests();
+  updateReqBadge();
+  renderReviewList();
+  renderAll();
+}
+
+function resolveEarlyLeaveDay(reqId,makeupDate,statusVal){
+  const req=requests.find(r=>r.id===reqId);
+  if(!req)return;
+  if(!req.elMakeupStatus) req.elMakeupStatus={};
+  // Get activity override from dropdown if set
+  const actEl=document.getElementById(`el-act-${reqId}-${makeupDate}`);
+  const approvedAct=actEl?actEl.value:req.elActivity;
+  req.elMakeupStatus[makeupDate]={status:statusVal,approvedActivity:approvedAct};
+
+  if(statusVal==='approved'){
+    const mkup=req.elMakeup.find(d=>d.date===makeupDate);
+    if(mkup){
+      const agentTZ=ATZ[req.agent];
+      const d=new Date(makeupDate+'T12:00:00');
+      const dayName=d.toLocaleDateString('en-US',{weekday:'long'});
+      const savedWO=weekOffset;
+      for(let wo=-52;wo<=52;wo++){if(toISO(dateOfDay(dayName,wo))===makeupDate){weekOffset=wo;break;}}
+      const fw=dayName==='Friday'?getFriWeekForDate(d):1;
+      const blocks=JSON.parse(JSON.stringify(getRawBlocks(req.agent,dayName,fw)));
+      weekOffset=savedWO;
+
+      const totalMins=Math.round(mkup.hours*60);
+      // Find shift start/end
+      const shiftStart=blocks.length?Math.min(...blocks.map(b=>t2m(b[1]))):t2m('09:00');
+      const shiftEnd=blocks.length?Math.max(...blocks.map(b=>t2m(b[2]))):t2m('17:00');
+
+      let mkupStart,mkupEnd;
+      if(mkup.when==='before'){
+        mkupEnd=m2t(shiftStart);
+        mkupStart=m2t(shiftStart-totalMins);
+      } else {
+        mkupStart=m2t(shiftEnd);
+        mkupEnd=m2t(shiftEnd+totalMins);
+      }
+      blocks.push([approvedAct,mkupStart,mkupEnd]);
+      blocks.sort((a,b)=>t2m(a[1])-t2m(b[1]));
+      if(!schedOverrides[req.agent])schedOverrides[req.agent]={};
+      schedOverrides[req.agent][makeupDate]=blocks;
+      save();renderAll();
+    }
+  }
+
+  // Check if all makeup days resolved — update overall status
+  const allResolved=req.elMakeup.every(d=>req.elMakeupStatus[d.date]);
+  const anyApproved=req.elMakeup.some(d=>req.elMakeupStatus[d.date]?.status==='approved');
+  if(allResolved) req.status=anyApproved?'approved':'denied';
+
+  saveRequests();updateReqBadge();renderReviewList();
+}
+
+function resolveRequest(id,status){
+  const req=requests.find(r=>r.id===id);
+  if(!req)return;
+  const noteEl=document.getElementById(`mgr-note-${id}`);
+  req.managerNote=noteEl?noteEl.value.trim():'';
+  req.status=status;
+  req.resolvedAt=new Date().toISOString();
+
+  if(status==='approved'){
+    const d=new Date(req.date+'T12:00:00');
+    const dayName=d.toLocaleDateString('en-US',{weekday:'long'});
+
+    if(req.type==='shift'&&req.shiftNewStart){
+      // Offset every block by the difference between new start and current shift start
+      const savedWO=weekOffset;
+      for(let wo=-52;wo<=52;wo++){if(toISO(dateOfDay(dayName,wo))===req.date){weekOffset=wo;break;}}
+      const fw=dayName==='Friday'?getFriWeekForDate(d):1;
+      const blocks=JSON.parse(JSON.stringify(getRawBlocks(req.agent,dayName,fw)));
+      weekOffset=savedWO;
+      if(blocks.length){
+        const curStart=Math.min(...blocks.map(b=>t2m(b[1])));
+        const offsetMins=t2m(req.shiftNewStart)-curStart;
+        const shifted=blocks.map(b=>[b[0],m2t(t2m(b[1])+offsetMins),m2t(t2m(b[2])+offsetMins)]);
+        if(!schedOverrides[req.agent])schedOverrides[req.agent]={};
+        schedOverrides[req.agent][req.date]=shifted;
+        save();
+      }
+    } else if(req.blocks.length){
+      const clean=JSON.parse(JSON.stringify(req.blocks)).sort((a,b)=>t2m(a[1])-t2m(b[1]));
+      if(req.type==='permanent'){
+        const savedWO=weekOffset;
+        for(let wo=-52;wo<=52;wo++){
+          const dateStr=toISO(dateOfDay(req.dayOfWeek,wo));
+          if(dateStr>=req.date){
+            if(!schedOverrides[req.agent])schedOverrides[req.agent]={};
+            schedOverrides[req.agent][dateStr]=JSON.parse(JSON.stringify(clean));
+          }
+        }
+        weekOffset=savedWO;
+      } else {
+        if(dayName==='Friday'){
+          const fw=getFriWeekForDate(d);
+          if(!friOverrides[fw][req.agent])friOverrides[fw][req.agent]={};
+          friOverrides[fw][req.agent][req.date]=clean;
+        } else {
+          if(!schedOverrides[req.agent])schedOverrides[req.agent]={};
+          schedOverrides[req.agent][req.date]=clean;
+        }
+      }
+      save();
+    }
+  }
+
+  saveRequests();
+  updateReqBadge();
+  renderReviewList();
+  renderAll();
+}
+
+function reqClearAll(){
+  if(!confirm('Remove all approved/denied requests? Pending requests will stay.'))return;
+  requests=requests.filter(r=>r.status==='pending');
+  saveRequests();
+  renderReviewList();
+}
+
+function renderAll(){renderManager();renderAgent();if(document.getElementById('view-coverage').classList.contains('active'))renderCovTab();updateReqBadge();}
 
 // ── Copy from previous week ───────────────────────────────────
 let copySelection={mode:null,day:null}; // mode: 'day' or 'week'
@@ -1907,9 +2696,17 @@ function switchTab(tab){
       document.getElementById('copy-src-date').value=toISO(new Date());
     onBuilderChange();
   }
+  if(tab==='request'){
+    if(!document.getElementById('req-date').value)
+      document.getElementById('req-date').value=toISO(new Date());
+    onReqTypeChange();
+    const agent=document.getElementById('req-agent').value;
+    renderMyRequests(agent);
+  }
+  if(tab==='review') renderReviewList();
 }
 
-setSS('loading');populateSelects();buildLegend();load();
+setSS('loading');populateSelects();buildLegend();load();loadRequests();
 setInterval(()=>{renderManager();renderAgent();},60000);
 </script>
 </body>
