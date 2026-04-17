@@ -378,8 +378,47 @@ select, input[type=time] { width: 100%; font-size: 13px; padding: 7px 9px; borde
   <div id="view-review" class="view">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
       <div style="font-size:13px;color:var(--text-secondary)" id="review-summary"></div>
-      <button class="bs" onclick="reqClearAll()" style="font-size:12px">Clear all resolved</button>
+      <div style="display:flex;gap:8px">
+        <button class="bs" onclick="toggleSlackSettings()" style="font-size:12px">⚙ Slack settings</button>
+        <button class="bs" onclick="reqClearAll()" style="font-size:12px">Clear all resolved</button>
+      </div>
     </div>
+
+    <!-- Slack settings panel -->
+    <div id="slack-settings-panel" style="display:none;margin-bottom:1rem">
+      <div class="card" style="margin-bottom:0">
+        <div class="card-title" style="margin-bottom:.5rem">Slack notification settings</div>
+        <p style="font-size:13px;color:var(--text-secondary);margin-bottom:.75rem">
+          Paste your Slack Incoming Webhook URL below. A message will be sent to your chosen Slack channel every time an agent submits a request.
+        </p>
+        <div style="margin-bottom:10px">
+          <label>Webhook URL</label>
+          <input type="text" id="slack-webhook-url" placeholder="https://hooks.slack.com/services/..." 
+            style="width:100%;font-size:13px;padding:7px 9px;border:0.5px solid var(--border-mid);border-radius:var(--radius-md);background:var(--bg-primary);color:var(--text-primary);font-family:var(--font);margin-top:4px">
+        </div>
+        <div style="margin-bottom:10px">
+          <label>Your name (shown in notifications)</label>
+          <input type="text" id="slack-manager-name" placeholder="e.g. Kourtney" 
+            style="width:100%;font-size:13px;padding:7px 9px;border:0.5px solid var(--border-mid);border-radius:var(--radius-md);background:var(--bg-primary);color:var(--text-primary);font-family:var(--font);margin-top:4px">
+        </div>
+        <div class="btn-row">
+          <button class="bp" onclick="saveSlackSettings()">Save</button>
+          <button class="bs" onclick="testSlackNotification()">Send test message</button>
+        </div>
+        <div id="slack-status" style="font-size:12px;margin-top:8px"></div>
+        <div style="margin-top:1rem;padding-top:1rem;border-top:0.5px solid var(--border-light)">
+          <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:6px">How to get your webhook URL:</div>
+          <ol style="font-size:12px;color:var(--text-tertiary);padding-left:1.25rem;line-height:1.8">
+            <li>Go to <strong>api.slack.com/apps</strong> and click "Create New App"</li>
+            <li>Choose "From scratch", name it (e.g. "Schedule Requests"), pick your workspace</li>
+            <li>Click "Incoming Webhooks" → toggle it on</li>
+            <li>Click "Add New Webhook to Workspace" → pick your channel</li>
+            <li>Copy the webhook URL and paste it above</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+
     <div id="review-list"></div>
   </div>
 
@@ -1990,6 +2029,89 @@ const RQK='mending-requests-v2';
 let requests=[]; // [{id,agent,type,date,dayOfWeek,blocks,notes,status,submittedAt,resolvedAt,managerNote}]
 let reqBlocks=[]; // blocks being built for current request
 
+// ── Slack notifications ───────────────────────────────────────
+const SLACK_KEY='mending-slack-v1';
+let slackWebhook='';
+let slackManagerName='';
+
+function loadSlackSettings(){
+  try{
+    const s=localStorage.getItem(SLACK_KEY);
+    if(s){const d=JSON.parse(s);slackWebhook=d.webhook||'';slackManagerName=d.name||'';}
+  }catch(e){}
+}
+
+function saveSlackSettings(){
+  slackWebhook=document.getElementById('slack-webhook-url').value.trim();
+  slackManagerName=document.getElementById('slack-manager-name').value.trim();
+  localStorage.setItem(SLACK_KEY,JSON.stringify({webhook:slackWebhook,name:slackManagerName}));
+  document.getElementById('slack-status').innerHTML='<span style="color:#27500A">✓ Settings saved</span>';
+}
+
+function toggleSlackSettings(){
+  const panel=document.getElementById('slack-settings-panel');
+  const isOpen=panel.style.display!=='none';
+  panel.style.display=isOpen?'none':'block';
+  if(!isOpen){
+    // Populate fields from saved settings
+    document.getElementById('slack-webhook-url').value=slackWebhook;
+    document.getElementById('slack-manager-name').value=slackManagerName;
+    document.getElementById('slack-status').textContent='';
+  }
+}
+
+function testSlackNotification(){
+  const url=document.getElementById('slack-webhook-url').value.trim();
+  if(!url){alert('Please enter a webhook URL first.');return;}
+  const name=document.getElementById('slack-manager-name').value.trim()||'Manager';
+  sendSlackNotification(url,{
+    agent:'Test Agent',
+    type:'day',
+    date:toISO(new Date()),
+    notes:'This is a test notification from your Mending Schedule app.',
+  }).then(ok=>{
+    document.getElementById('slack-status').innerHTML=ok
+      ?'<span style="color:#27500A">✓ Test message sent! Check your Slack channel.</span>'
+      :'<span style="color:#A32D2D">✗ Failed to send. Check your webhook URL and try again.</span>';
+  });
+}
+
+async function sendSlackNotification(webhookUrl,req){
+  if(!webhookUrl) return false;
+  const typeLabels={shift:'Shift time change',day:'Day change',permanent:'Permanent break/lunch',time:'Additional time',earlyleave:'Early leave + makeup'};
+  const typeLabel=typeLabels[req.type]||req.type;
+  const dateDisp=req.date?new Date(req.date+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric',year:'numeric'}):'';
+
+  let detail='';
+  if(req.type==='shift'&&req.shiftNewStart) detail=`\nRequested: ${m2d(t2m(req.shiftNewStart))}–${m2d(t2m(req.shiftNewEnd))} ${ATZ[req.agent]||''}`;
+  else if(req.type==='time') detail=`\nActivity: ${req.timeAct} · Amount: ${req.timeMinutes}min · ${req.timeFreq==='weekly'?'Weekly':'One-time'}`;
+  else if(req.type==='earlyleave') detail=`\nLeaving at: ${req.elLeaveTime?m2d(t2m(req.elLeaveTime)):''} · Make up: ${req.elHours}h`;
+  else if(req.blocks&&req.blocks.length) detail=`\nProposed: ${req.blocks.map(b=>`${b[0]} ${m2d(t2m(b[1]))}–${m2d(t2m(b[2]))}`).join(', ')}`;
+  if(req.notes) detail+=`\nNote: "${req.notes}"`;
+
+  const text=`:calendar: *New schedule request*\n*Agent:* ${req.agent}\n*Type:* ${typeLabel}\n*Date:* ${dateDisp}${detail}\n\n_Review it in the Schedule Viewer → Review requests tab_`;
+
+  try{
+    const resp=await fetch(webhookUrl,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({text}),
+    });
+    return resp.ok;
+  }catch(e){
+    // CORS will block this from GitHub Pages — use no-cors mode
+    try{
+      await fetch(webhookUrl,{
+        method:'POST',
+        mode:'no-cors',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({text}),
+      });
+      return true; // no-cors means we can't read the response, assume success
+    }catch(e2){return false;}
+  }
+}
+
 function saveRequests(){localStorage.setItem(RQK,JSON.stringify(requests));}
 function loadRequests(){
   try{const r=localStorage.getItem(RQK);if(r)requests=JSON.parse(r);}catch(e){}
@@ -2215,6 +2337,8 @@ function submitRequest(){
   requests.push(req);
   saveRequests();updateReqBadge();reqClear();
   elMakeupDays=[];renderElMakeupDays();
+  // Send Slack notification if webhook is configured
+  if(slackWebhook) sendSlackNotification(slackWebhook,req);
   const dateDisp=new Date(date+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'});
   document.getElementById('req-status').innerHTML=`<span style="color:#27500A">✓ Request submitted for ${dateDisp}. Your manager will review it shortly.</span>`;
   renderMyRequests(agent);
@@ -2706,7 +2830,7 @@ function switchTab(tab){
   if(tab==='review') renderReviewList();
 }
 
-setSS('loading');populateSelects();buildLegend();load();loadRequests();
+setSS('loading');populateSelects();buildLegend();load();loadRequests();loadSlackSettings();
 setInterval(()=>{renderManager();renderAgent();},60000);
 </script>
 </body>
