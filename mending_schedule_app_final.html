@@ -548,6 +548,7 @@ select, input[type=time] { width: 100%; font-size: 13px; padding: 7px 9px; borde
       <div class="btn-row">
         <button class="bp" onclick="bamSaveEdit()">Save change</button>
         <button class="bs" onclick="bamShowDelete()">Delete instead</button>
+        <button class="bs" onclick="bamResetDay()" style="color:#A32D2D;border-color:#E8A0A0">↩ Reset this day</button>
         <button class="bs" onclick="closeBam()">Cancel</button>
       </div>
     </div>
@@ -572,6 +573,7 @@ select, input[type=time] { width: 100%; font-size: 13px; padding: 7px 9px; borde
       <div style="margin-bottom:12px"><label>Activity</label><select id="bam-add-act"></select></div>
       <div class="btn-row">
         <button class="bp" onclick="bamSaveAdd()">Add block</button>
+        <button class="bs" onclick="bamResetDay()" style="color:#A32D2D;border-color:#E8A0A0">↩ Reset this day</button>
         <button class="bs" onclick="closeBam()">Cancel</button>
       </div>
     </div>
@@ -2265,6 +2267,78 @@ function bamShowAdd(){
   document.getElementById('bam-edit-panel').style.display='none';
   document.getElementById('bam-delete-panel').style.display='none';
   document.getElementById('bam-add-panel').style.display='block';
+}
+
+function bamResetDay(){
+  const{agent,day,fw}=bam;
+  const dateStr=toISO(dateOfDay(day,weekOffset));
+  const tz=ATZ[agent];
+
+  // Get the BASE schedule for this agent/day (what it would revert to)
+  let baseBlocks;
+  if(day==='Friday'){
+    baseBlocks=BF[fw]&&BF[fw][agent]?JSON.parse(JSON.stringify(BF[fw][agent])):[];
+  } else {
+    baseBlocks=BASE[agent]&&BASE[agent][day]?JSON.parse(JSON.stringify(BASE[agent][day])):[];
+  }
+
+  if(!baseBlocks.length){
+    alert('No base schedule found for this day.');
+    return;
+  }
+
+  closeBam();
+
+  // Clear any overrides and toggles for this date
+  // We'll do this on confirm, for now just show the preview
+  _pendingSchedSave={
+    agent,day,fw,
+    blocks:baseBlocks,
+    dateStr,
+    _onConfirm:()=>{
+      // Clear date-specific overrides
+      if(day==='Friday'){
+        if(friOverrides[fw]&&friOverrides[fw][agent]) delete friOverrides[fw][agent][dateStr];
+      } else {
+        if(schedOverrides[agent]) delete schedOverrides[agent][dateStr];
+      }
+      // Clear any date-specific toggles
+      if(noOB[dateStr]) delete noOB[dateStr][agent];
+      if(noPT[dateStr]) delete noPT[dateStr][agent];
+      if(noHoliday[dateStr]) delete noHoliday[dateStr][agent];
+      if(ooo[agent]) delete ooo[agent][dateStr];
+      save();
+      renderAll();
+    }
+  };
+
+  // Build and show the confirmation preview
+  const dateDisp=new Date(dateStr+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'});
+  const bS=Math.min(...baseBlocks.map(b=>t2m(b[1])));
+  const bE=Math.max(...baseBlocks.map(b=>t2m(b[2])));
+  const tot=bE-bS||1;
+  let barHTML=`<div style="font-size:12px;color:#A32D2D;margin-bottom:8px;padding:6px 10px;background:#FCEBEB;border-radius:var(--radius-md)">All manual changes for this day will be cleared and replaced with the base schedule.</div>`;
+  barHTML+=`<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-tertiary);margin-bottom:3px"><span>${m2d(bS)}</span><span>${m2d(bE)}</span></div>`;
+  barHTML+=`<div style="display:flex;height:36px;border-radius:6px;overflow:hidden;margin-bottom:10px">`;
+  baseBlocks.forEach(b=>{
+    const c=COLORS[b[0]]||{bg:'#D3D1C7',text:'#444441'};
+    const w=((t2m(b[2])-t2m(b[1]))/tot*100).toFixed(2);
+    const lbl=getLabel(b[0],parseFloat(w));
+    barHTML+=`<div style="width:${w}%;background:${c.bg};color:${c.text};font-size:10px;display:flex;align-items:center;justify-content:center;overflow:hidden;white-space:nowrap">${lbl}</div>`;
+  });
+  barHTML+=`</div><div style="display:flex;flex-direction:column;gap:4px">`;
+  baseBlocks.forEach(b=>{
+    const c=COLORS[b[0]]||{bg:'#D3D1C7',text:'#444441'};
+    const dur=t2m(b[2])-t2m(b[1]);
+    const dl=dur>=60?Math.floor(dur/60)+'h '+(dur%60?dur%60+'m':''):dur+'m';
+    barHTML+=`<div style="display:flex;align-items:center;gap:8px;font-size:12px"><div style="width:10px;height:10px;border-radius:2px;flex-shrink:0;background:${c.bg}"></div><span style="flex:1"><strong>${b[0]}</strong></span><span style="color:var(--text-secondary)">${m2d(t2m(b[1]))}–${m2d(t2m(b[2]))} <span style="color:var(--text-tertiary)">(${dl})</span></span></div>`;
+  });
+  barHTML+=`</div>`;
+
+  document.getElementById('sched-confirm-title').textContent=`Reset — ${agent}`;
+  document.getElementById('sched-confirm-agent-date').textContent=`${dateDisp} · ${tz} — reverting to base schedule`;
+  document.getElementById('sched-confirm-preview').innerHTML=barHTML;
+  document.getElementById('sched-confirm-modal').classList.add('open');
 }
 
 function bamSaveAdd(){
