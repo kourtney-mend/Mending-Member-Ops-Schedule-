@@ -1006,7 +1006,8 @@ function applyOOO(){
 
   // Store pending context for impact modal
   _oooContext={..._oooContext,start,end,newBlocks};
-  closeOooModal();
+  // Close the OOO modal but keep _oooContext intact for the next step
+  document.getElementById('ooo-modal').classList.remove('open');
 
   // Check other agents for TO activities during this window
   const otherAgents=AGENTS.filter(a=>a!==agent);
@@ -1091,6 +1092,7 @@ function skipOooImpact(){
 
 function _commitPartialOOO(){
   const{agent,day,fw,newBlocks}=_oooContext;
+  _oooContext={agent:null,dateStr:null,day:null,fw:null}; // clear before async confirm
   save();
   schedConfirmSave(agent,day,fw,newBlocks);
 }
@@ -1152,7 +1154,7 @@ function gBlocks(agent,day,fw,tS,tF){
     partial=partial.filter(b=>t2m(b[2])>t2m(b[1])).sort((a,b)=>t2m(a[1])-t2m(b[1]));
     return partial;
   }
-  const someoneOOO=AGENTS.filter(a=>a!==agent&&ooo[a]&&ooo[a][dateStr]).length>0;
+  const someoneOOO=AGENTS.filter(a=>a!==agent&&ooo[a]&&ooo[a][dateStr]===true).length>0;
   if(someoneOOO) return applyOOOCoverage(blocks);
   return blocks;
 }
@@ -1663,7 +1665,7 @@ function renderManager(){
     wrap.appendChild(div);
     renderDualTL(a,mDay,mFW,div.querySelector(`#tl-${a}`));
   });
-  const oooAgents=AGENTS.filter(a=>ooo[a]&&ooo[a][mDateStr]);
+  const oooAgents=AGENTS.filter(a=>ooo[a]&&ooo[a][mDateStr]===true);
   if(oooAgents.length>0){
     const notice=document.createElement('div');
     notice.style.cssText='font-size:12px;color:#633806;background:#FAEEDA;border:0.5px solid #FAC775;border-radius:var(--radius-md);padding:8px 14px;margin-bottom:1rem';
@@ -1672,12 +1674,12 @@ function renderManager(){
     wrap.insertBefore(notice,wrap.firstChild);
   }
   let ph=0,ob=0,tot=0;
-  AGENTS.forEach(a=>{if(ooo[a]&&ooo[a][mDateStr])return;gBlocks(a,mDay,mFW).forEach(b=>{const d=t2m(b[2])-t2m(b[1]);if(b[0]==='On Phones')ph+=d;if(b[0]==='Outbound')ob+=d;tot+=d;});});
+  AGENTS.forEach(a=>{if(ooo[a]&&ooo[a][mDateStr]===true)return;gBlocks(a,mDay,mFW).forEach(b=>{const d=t2m(b[2])-t2m(b[1]);if(b[0]==='On Phones')ph+=d;if(b[0]==='Outbound')ob+=d;tot+=d;});});
   const dateDisp=new Date(mDateStr+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});
   document.getElementById('mgr-summary').innerHTML=`
     <div class="sum-card"><div class="sum-lbl">Inbound coverage</div><div class="sum-val">${(ph/60).toFixed(1)}h</div><div class="sum-sub">across working agents</div></div>
     <div class="sum-card"><div class="sum-lbl">Outbound coverage</div><div class="sum-val">${(ob/60).toFixed(1)}h</div><div class="sum-sub">${AGENTS.some(a=>noOB[mDateStr]&&noOB[mDateStr][a])?'Some agents no OB':'across working agents'}</div></div>
-    <div class="sum-card"><div class="sum-lbl">Agents working</div><div class="sum-val">${AGENTS.filter(a=>!(ooo[a]&&ooo[a][mDateStr])).length}</div><div class="sum-sub">of ${AGENTS.length} on ${dateDisp}</div></div>`;
+    <div class="sum-card"><div class="sum-lbl">Agents working</div><div class="sum-val">${AGENTS.filter(a=>!(ooo[a]&&ooo[a][mDateStr]===true)).length}</div><div class="sum-sub">of ${AGENTS.length} on ${dateDisp}</div></div>`;
 }
 function setMDay(d){mDay=d;renderManager();}
 function setMgrFriWeek(w){mFW=w;renderManager();}
@@ -1691,7 +1693,7 @@ function renderAgent(){
 
   const isOOO=ooo[aView]&&ooo[aView][aDateStr]===true; // full day only
   const isPartialOOO=ooo[aView]&&ooo[aView][aDateStr]&&typeof ooo[aView][aDateStr]==='object';
-  const someoneElseOOO=AGENTS.filter(a=>a!==aView&&ooo[a]&&ooo[a][aDateStr]);
+  const someoneElseOOO=AGENTS.filter(a=>a!==aView&&ooo[a]&&ooo[a][aDateStr]===true);
   const blocks=gBlocks(aView,aDay,aFW),tz=ATZ[aView],tWrap=document.getElementById('agent-tl');
 
   // OOO / simplified schedule banner
@@ -3374,7 +3376,7 @@ const SLUSH_PER_DAY=20; // minutes
 function calcTransfersOnly(agent,day,fw){
   const blocks=gBlocks(agent,day,fw);
   const dateStr=toISO(dateOfDay(day,weekOffset));
-  if(ooo[agent]&&ooo[agent][dateStr]) return{mins:0,online:0,working:false};
+  if(ooo[agent]&&ooo[agent][dateStr]===true) return{mins:0,online:0,working:false};
   const mins=blocks
     .filter(b=>TO_ACTIVITIES.has(b[0]))
     .reduce((s,b)=>s+(t2m(b[2])-t2m(b[1])),0);
@@ -3456,11 +3458,13 @@ function renderTransfersOnly(){
               const blocks=gBlocks(agent,day,fw);
               const toBlocks=blocks.filter(b=>TO_ACTIVITIES.has(b[0]));
               const dateStr=toISO(d);
-              const isOOODay=ooo[agent]&&ooo[agent][dateStr];
+              const isOOODay=ooo[agent]&&ooo[agent][dateStr]===true;
+              const isPartialOOODay=ooo[agent]&&ooo[agent][dateStr]&&typeof ooo[agent][dateStr]==='object';
               const isHolDay=noHoliday[dateStr]&&noHoliday[dateStr][agent];
               const daySlush=working?SLUSH_PER_DAY:0;
               let statusTag='';
               if(isOOODay) statusTag=`<span style="font-size:10px;background:#FAEEDA;color:#633806;padding:1px 5px;border-radius:4px;margin-left:4px">OOO</span>`;
+              else if(isPartialOOODay) statusTag=`<span style="font-size:10px;background:#FAEEDA;color:#633806;padding:1px 5px;border-radius:4px;margin-left:4px">Partial OOO</span>`;
               else if(isHolDay) statusTag=`<span style="font-size:10px;background:#F4C0D1;color:#72243E;padding:1px 5px;border-radius:4px;margin-left:4px">Holiday</span>`;
               return`<tr style="border-bottom:0.5px solid var(--border-light);${isTod?'background:var(--bg-secondary)':''}">
                 <td style="padding:6px 8px;font-weight:${isTod?'500':'400'}">${day.slice(0,3)} <span style="color:var(--text-tertiary)">${dateDisp}</span>${statusTag}</td>
@@ -3571,7 +3575,7 @@ function confirmCopy(){
         AGENTS.forEach(a=>{if(noOB[prevDateStr][a]) noOB[curDateStr][a]=true;});
       }
       AGENTS.forEach(a=>{
-        if(ooo[a]&&ooo[a][prevDateStr]) ooo[a][curDateStr]=true;
+        if(ooo[a]&&ooo[a][prevDateStr]===true) ooo[a][curDateStr]=true;
       });
     });
   } else {
@@ -3595,7 +3599,7 @@ function confirmCopy(){
       AGENTS.forEach(a=>{if(noOB[prevDateStr][a]) noOB[curDateStr][a]=true;});
     }
     AGENTS.forEach(a=>{
-      if(ooo[a]&&ooo[a][prevDateStr]) ooo[a][curDateStr]=true;
+      if(ooo[a]&&ooo[a][prevDateStr]===true) ooo[a][curDateStr]=true;
     });
   }
   closeCopyModal();
