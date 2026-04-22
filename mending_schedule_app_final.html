@@ -1865,8 +1865,6 @@ function applyEdit(){
   const day=document.getElementById('edit-day').value;
   const act=document.getElementById('edit-activity').value;
   const agentTZ=ATZ[agent];
-  const rawNs=document.getElementById('edit-start').value;
-  const rawNe=document.getElementById('edit-end').value;
   const ns=getTimeInAgentTZ('edit-start','edit-tz',agentTZ);
   const ne=getTimeInAgentTZ('edit-end','edit-tz',agentTZ);
   const origStart=document.getElementById('edit-orig-start').value;
@@ -2600,23 +2598,22 @@ function bamShowDelete(){
 // Converts a time string from a selected TZ to agent's TZ
 function convertToAgentTZ(timeStr, fromTZ, agentTZ){
   if(!timeStr) return timeStr;
-  if(fromTZ===agentTZ) return timeStr;
-  const fromOff=getTZOffsetMins(fromTZ);
-  const toOff=getTZOffsetMins(agentTZ);
+  if(!fromTZ||!agentTZ||fromTZ===agentTZ) return timeStr;
+  const fromOff=getTZOffsetMins(fromTZ)||0;
+  const toOff=getTZOffsetMins(agentTZ)||0;
   return m2t(t2m(timeStr)+(toOff-fromOff));
 }
 
-// Get the selected TZ from a named radio group
 function getSelectedTZ(groupName){
   const el=document.querySelector(`input[name="${groupName}"]:checked`);
   return el?el.value:'EST';
 }
 
-// Read a time input and convert to agent TZ based on a radio group selection
 function getTimeInAgentTZ(inputId, tzGroupName, agentTZ){
   const val=document.getElementById(inputId)?.value;
   if(!val) return val;
   const selectedTZ=getSelectedTZ(tzGroupName);
+  if(!agentTZ||selectedTZ===agentTZ) return val;
   return convertToAgentTZ(val, selectedTZ, agentTZ);
 }
 
@@ -3946,6 +3943,7 @@ function isToday(day,wo){
     hideTimer=setTimeout(()=>{card.style.display='none';},80);
   });
 })();
+setSS('loading');populateSelects();buildLegend();load();loadRequests();loadSlackSettings();
 setInterval(()=>{renderManager();renderAgent();},60000);
 </script>
 
