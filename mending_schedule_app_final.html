@@ -72,6 +72,37 @@ body { font-family: var(--font); background: var(--bg-tertiary); min-height: 100
 .tl-block:hover { opacity: 0.82; }
 .tl-block:active { opacity: 0.65; }
 @media (max-width: 600px) {
+  body { padding: 0; margin: 0; }
+  .container { padding: 0.75rem; border-radius: 0; border-left: none; border-right: none; min-height: 100vh; }
+  .app-header { margin-bottom: 1rem; padding-bottom: 0.75rem; gap: 6px; }
+  .app-title { font-size: 15px; }
+  .tabs { gap: 0; margin-bottom: 1rem; overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab { padding: 8px 12px; font-size: 12px; white-space: nowrap; flex-shrink: 0; }
+  .day-select { gap: 4px; margin-bottom: 1rem; }
+  .day-btn { padding: 6px 10px; font-size: 12px; }
+  .agent-header { flex-direction: column; align-items: flex-start; gap: 6px; }
+  .agent-header > div:last-child { display: flex; flex-wrap: wrap; gap: 5px; width: 100%; }
+  .agent-header button { font-size: 11px; padding: 4px 10px; }
+  .tl-row { gap: 4px; }
+  .tl-tz { width: 24px; font-size: 9px; }
+  .tl-bar { height: 36px !important; }
+  .tl-block { font-size: 9px !important; }
+  .form-row { grid-template-columns: 1fr; }
+  .form-row.three { grid-template-columns: 1fr; }
+  .sum-grid { grid-template-columns: 1fr 1fr; gap: 6px; }
+  .sum-val { font-size: 18px; }
+  .btn-row { gap: 6px; }
+  .bp, .bs, .bd { padding: 9px 14px; font-size: 13px; flex: 1; text-align: center; }
+  .card { padding: 0.75rem 1rem; }
+  .modal { padding: 1.25rem; max-height: 85vh; }
+  .block-item { flex-direction: column; align-items: flex-start; gap: 4px; }
+  .block-item > div { width: 100%; }
+  #tl-hover-card { display: none !important; }
+  .legend { gap: 8px; }
+  .legend-item { font-size: 11px; }
+  .agent-row { margin-bottom: 1rem; }
+  .dual-wrap { gap: 2px; }
   #view-manager > div:first-child { flex-direction: column; align-items: flex-start; gap: 8px; }
   #view-manager > div:first-child > div { width: 100%; justify-content: flex-start; flex-wrap: wrap; }
 }
@@ -112,39 +143,7 @@ select, input[type=time] { width: 100%; font-size: 13px; padding: 7px 9px; borde
 .modal-agent-row:last-child { border-bottom: none; }
 .slot-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px,1fr)); gap: 5px; margin-top: .5rem; }
 .slot-item { border-radius: var(--radius-sm); padding: 5px 8px; font-size: 12px; }
-@media (max-width: 600px) {
-  body { padding: 0; margin: 0; }
-  .container { padding: 0.75rem; border-radius: 0; border-left: none; border-right: none; min-height: 100vh; }
-  .app-header { margin-bottom: 1rem; padding-bottom: 0.75rem; gap: 6px; }
-  .app-title { font-size: 15px; }
-  .tabs { gap: 0; margin-bottom: 1rem; overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
-  .tabs::-webkit-scrollbar { display: none; }
-  .tab { padding: 8px 12px; font-size: 12px; white-space: nowrap; flex-shrink: 0; }
-  .day-select { gap: 4px; margin-bottom: 1rem; }
-  .day-btn { padding: 6px 10px; font-size: 12px; }
-  .agent-header { flex-direction: column; align-items: flex-start; gap: 6px; }
-  .agent-header > div:last-child { display: flex; flex-wrap: wrap; gap: 5px; width: 100%; }
-  .agent-header button { font-size: 11px; padding: 4px 10px; }
-  .tl-row { gap: 4px; }
-  .tl-tz { width: 24px; font-size: 9px; }
-  .tl-bar { height: 36px !important; }
-  .tl-block { font-size: 9px !important; }
-  .form-row { grid-template-columns: 1fr; }
-  .form-row.three { grid-template-columns: 1fr; }
-  .sum-grid { grid-template-columns: 1fr 1fr; gap: 6px; }
-  .sum-val { font-size: 18px; }
-  .btn-row { gap: 6px; }
-  .bp, .bs, .bd { padding: 9px 14px; font-size: 13px; flex: 1; text-align: center; }
-  .card { padding: 0.75rem 1rem; }
-  .modal { padding: 1.25rem; max-height: 85vh; }
-  .block-item { flex-direction: column; align-items: flex-start; gap: 4px; }
-  .block-item > div { width: 100%; }
-  #tl-hover-card { display: none !important; } /* hover cards don't work on touch */
-  .legend { gap: 8px; }
-  .legend-item { font-size: 11px; }
-  .agent-row { margin-bottom: 1rem; }
-  .dual-wrap { gap: 2px; }
-}
+
 </style>
 </head>
 <body>
@@ -1070,12 +1069,28 @@ async function pushToGitHub(silent=false){
 async function pullFromGitHub(){
   if(!ghUser||!ghRepo) return false;
   try{
-    // Use public raw URL — no token needed, anyone can read
-    // Add cache-bust so browser doesn't serve stale version
+    // Try GitHub Pages URL first (works for both public and private via Pages)
+    // Then fall back to raw.githubusercontent.com
+    const pageUrl=`https://${ghUser}.github.io/${ghRepo}/${GH_FILE}?t=${Date.now()}`;
     const rawUrl=`https://raw.githubusercontent.com/${ghUser}/${ghRepo}/main/${GH_FILE}?t=${Date.now()}`;
-    const resp=await fetch(rawUrl);
-    if(!resp.ok) return false;
-    const raw=await resp.json();
+
+    let raw=null;
+    // Try Pages URL first
+    try{
+      const r=await fetch(pageUrl);
+      if(r.ok) raw=await r.json();
+    }catch(e){}
+
+    // Fall back to raw URL
+    if(!raw){
+      try{
+        const r=await fetch(rawUrl);
+        if(r.ok) raw=await r.json();
+      }catch(e){}
+    }
+
+    if(!raw) return false;
+
     // Apply pulled data
     if(raw.schedOverrides) schedOverrides=raw.schedOverrides;
     if(raw.friOverrides) friOverrides=raw.friOverrides;
@@ -1096,21 +1111,35 @@ async function pullFromGitHub(){
 
 async function testGitHubSync(){
   const statusEl=document.getElementById('gh-status');
-  // Save settings from fields first
   ghUser=document.getElementById('gh-user').value.trim();
   ghRepo=document.getElementById('gh-repo').value.trim();
   ghToken=document.getElementById('gh-token').value.trim();
   if(!ghUser||!ghRepo||!ghToken){statusEl.innerHTML='<span style="color:#A32D2D">✗ Fill in all fields first.</span>';return;}
   statusEl.innerHTML='<span style="color:#BA7517">Testing...</span>';
   try{
+    // 1. Check repo access with token
     const resp=await fetch(`https://api.github.com/repos/${ghUser}/${ghRepo}`,{
       headers:{'Authorization':`Bearer ${ghToken}`,'Accept':'application/vnd.github+json'}
     });
-    if(resp.ok){
-      statusEl.innerHTML='<span style="color:#27500A">✓ Connected! Repository found. Save settings then click "Push now" to sync.</span>';
-    } else {
+    if(!resp.ok){
       const e=await resp.json();
-      statusEl.innerHTML=`<span style="color:#A32D2D">✗ ${e.message||'Could not connect. Check your token and repo name.'}</span>`;
+      statusEl.innerHTML=`<span style="color:#A32D2D">✗ Repo error: ${e.message||'Check username, repo name, and token.'}</span>`;
+      return;
+    }
+    const repoData=await resp.json();
+    const isPrivate=repoData.private;
+
+    // 2. Try to read the data file
+    const pageUrl=`https://${ghUser}.github.io/${ghRepo}/${GH_FILE}?t=${Date.now()}`;
+    const rawUrl=`https://raw.githubusercontent.com/${ghUser}/${ghRepo}/main/${GH_FILE}?t=${Date.now()}`;
+    let fileFound=false;
+    try{const r=await fetch(pageUrl);if(r.ok)fileFound=true;}catch(e){}
+    if(!fileFound){try{const r=await fetch(rawUrl);if(r.ok)fileFound=true;}catch(e){}}
+
+    if(fileFound){
+      statusEl.innerHTML=`<span style="color:#27500A">✓ Connected! Repo found${isPrivate?' (private)':' (public)'} and data file is readable. Sync is working.</span>`;
+    } else {
+      statusEl.innerHTML=`<span style="color:#BA7517">✓ Repo connected but data file not found yet — click "Push now" to create it.${isPrivate?' Note: repo is private, make sure GitHub Pages is enabled.':''}</span>`;
     }
   }catch(e){statusEl.innerHTML=`<span style="color:#A32D2D">✗ Network error: ${e.message}</span>`;}
 }
