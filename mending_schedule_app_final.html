@@ -70,6 +70,11 @@ body { font-family: var(--font); background: var(--bg-tertiary); min-height: 100
 .tl-bar { display: flex; border-radius: var(--radius-md); overflow: hidden; border: 0.5px solid var(--border-light); position: relative; }
 .tl-block { display: flex; align-items: center; justify-content: center; font-weight: 500; cursor: pointer; overflow: hidden; white-space: nowrap; padding: 0 3px; transition: opacity 0.12s; }
 .tl-block:hover { opacity: 0.82; }
+.tl-block:active { opacity: 0.65; }
+@media (max-width: 600px) {
+  #view-manager > div:first-child { flex-direction: column; align-items: flex-start; gap: 8px; }
+  #view-manager > div:first-child > div { width: 100%; justify-content: flex-start; flex-wrap: wrap; }
+}
 #tl-hover-card { position:fixed; z-index:9999; background:var(--bg-primary); border:0.5px solid var(--border-mid); border-radius:var(--radius-md); padding:8px 12px; font-size:12px; font-family:var(--font); box-shadow:0 4px 16px rgba(0,0,0,0.12); pointer-events:none; display:none; min-width:140px; }
 .now-line { position: absolute; top: 0; bottom: 0; width: 2px; background: #E24B4A; pointer-events: none; z-index: 10; }
 .now-lbl { position: absolute; top: -14px; font-size: 9px; color: #E24B4A; transform: translateX(-50%); white-space: nowrap; font-weight: 500; }
@@ -108,10 +113,37 @@ select, input[type=time] { width: 100%; font-size: 13px; padding: 7px 9px; borde
 .slot-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px,1fr)); gap: 5px; margin-top: .5rem; }
 .slot-item { border-radius: var(--radius-sm); padding: 5px 8px; font-size: 12px; }
 @media (max-width: 600px) {
-  .form-row.three { grid-template-columns: 1fr 1fr; }
-  .sum-grid { grid-template-columns: 1fr 1fr; }
-  body { padding: 0.75rem 0.5rem; }
-  .container { padding: 1rem; }
+  body { padding: 0; margin: 0; }
+  .container { padding: 0.75rem; border-radius: 0; border-left: none; border-right: none; min-height: 100vh; }
+  .app-header { margin-bottom: 1rem; padding-bottom: 0.75rem; gap: 6px; }
+  .app-title { font-size: 15px; }
+  .tabs { gap: 0; margin-bottom: 1rem; overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab { padding: 8px 12px; font-size: 12px; white-space: nowrap; flex-shrink: 0; }
+  .day-select { gap: 4px; margin-bottom: 1rem; }
+  .day-btn { padding: 6px 10px; font-size: 12px; }
+  .agent-header { flex-direction: column; align-items: flex-start; gap: 6px; }
+  .agent-header > div:last-child { display: flex; flex-wrap: wrap; gap: 5px; width: 100%; }
+  .agent-header button { font-size: 11px; padding: 4px 10px; }
+  .tl-row { gap: 4px; }
+  .tl-tz { width: 24px; font-size: 9px; }
+  .tl-bar { height: 36px !important; }
+  .tl-block { font-size: 9px !important; }
+  .form-row { grid-template-columns: 1fr; }
+  .form-row.three { grid-template-columns: 1fr; }
+  .sum-grid { grid-template-columns: 1fr 1fr; gap: 6px; }
+  .sum-val { font-size: 18px; }
+  .btn-row { gap: 6px; }
+  .bp, .bs, .bd { padding: 9px 14px; font-size: 13px; flex: 1; text-align: center; }
+  .card { padding: 0.75rem 1rem; }
+  .modal { padding: 1.25rem; max-height: 85vh; }
+  .block-item { flex-direction: column; align-items: flex-start; gap: 4px; }
+  .block-item > div { width: 100%; }
+  #tl-hover-card { display: none !important; } /* hover cards don't work on touch */
+  .legend { gap: 8px; }
+  .legend-item { font-size: 11px; }
+  .agent-row { margin-bottom: 1rem; }
+  .dual-wrap { gap: 2px; }
 }
 </style>
 </head>
@@ -1244,37 +1276,42 @@ function applyOOO(){
 
   ooo[agent][dateStr]={start,end};
 
-  // Build new blocks for the OOO agent
-  const reschedule=document.querySelector('input[name="ooo-reschedule"]:checked')?.value;
+  // Only modify the schedule if there are conflicting TO activities the manager wants to reschedule/remove.
+  // For everything else (On Phones, Breaks, Lunch) gBlocks handles the Off block display automatically.
   const warn=document.getElementById('ooo-conflict-warning');
-  const blocks=getRawBlocks(agent,day,fw);
-  const hs=t2m(start),he=t2m(end);
-  let newBlocks=[];
-  blocks.forEach(b=>{
-    const bs=t2m(b[1]),be=t2m(b[2]);
-    const overlaps=TO_ACTIVITIES.has(b[0])&&be>hs&&bs<he;
-    if(!overlaps){
-      newBlocks.push([...b]);
-    } else if(warn.style.display!=='none'&&reschedule==='yes'){
-      const beforeDur=Math.max(0,hs-bs);
-      const totalDur=be-bs;
-      const remainingDur=totalDur-beforeDur;
-      if(beforeDur>0) newBlocks.push([b[0],b[1],m2t(hs)]);
-      if(remainingDur>0) newBlocks.push([b[0],m2t(he),m2t(he+remainingDur)]);
-    } else if(warn.style.display!=='none'&&reschedule==='no'){
-      if(bs<hs) newBlocks.push([b[0],b[1],m2t(hs)]);
-      if(be>he) newBlocks.push([b[0],m2t(he),b[2]]);
-    } else {
-      // No conflict — trim On Phones/other around Off block
-      if(bs<hs) newBlocks.push([b[0],b[1],m2t(hs)]);
-      if(be>he) newBlocks.push([b[0],m2t(he),b[2]]);
-    }
-  });
-  newBlocks.push(['Off',start,end]);
-  newBlocks=newBlocks.filter(b=>t2m(b[2])>t2m(b[1])).sort((a,b)=>t2m(a[1])-t2m(b[1]));
+  const hasConflicts=warn&&warn.style.display!=='none';
+
+  let newBlocks=null;
+
+  if(hasConflicts){
+    const reschedule=document.querySelector('input[name="ooo-reschedule"]:checked')?.value;
+    const blocks=getRawBlocks(agent,day,fw);
+    const hs=t2m(start),he=t2m(end);
+    let modified=[];
+    blocks.forEach(b=>{
+      const bs=t2m(b[1]),be=t2m(b[2]);
+      const overlaps=TO_ACTIVITIES.has(b[0])&&be>hs&&bs<he;
+      if(!overlaps){
+        modified.push([...b]);
+      } else if(reschedule==='yes'){
+        // Keep portion before OOO, shift remainder to after OOO end
+        const beforeDur=Math.max(0,hs-bs);
+        const totalDur=be-bs;
+        const remainingDur=totalDur-beforeDur;
+        if(beforeDur>0) modified.push([b[0],b[1],m2t(hs)]);
+        if(remainingDur>0) modified.push([b[0],m2t(he),m2t(he+remainingDur)]);
+      } else {
+        // Remove — keep only portions outside OOO window
+        if(bs<hs) modified.push([b[0],b[1],m2t(hs)]);
+        if(be>he) modified.push([b[0],m2t(he),b[2]]);
+      }
+    });
+    modified=modified.filter(b=>t2m(b[2])>t2m(b[1])).sort((a,b)=>t2m(a[1])-t2m(b[1]));
+    newBlocks=modified;
+  }
 
   // Store pending context for impact modal
-  _oooContext={..._oooContext,start,end,newBlocks};
+  _oooContext={..._oooContext,start,end,newBlocks}; // newBlocks may be null if no TO conflicts
   // Close the OOO modal but keep _oooContext intact for the next step
   document.getElementById('ooo-modal').classList.remove('open');
 
@@ -1361,9 +1398,15 @@ function skipOooImpact(){
 
 function _commitPartialOOO(){
   const{agent,day,fw,newBlocks}=_oooContext;
-  _oooContext={agent:null,dateStr:null,day:null,fw:null}; // clear before async confirm
+  _oooContext={agent:null,dateStr:null,day:null,fw:null};
   save();
-  schedConfirmSave(agent,day,fw,newBlocks);
+  if(newBlocks&&newBlocks.length){
+    // Only show confirmation if blocks were actually modified (TO conflicts resolved)
+    schedConfirmSave(agent,day,fw,newBlocks);
+  } else {
+    // No block changes — OOO window is stored, gBlocks handles display
+    renderAll();
+  }
 }
 
 function closeOooModal(){
