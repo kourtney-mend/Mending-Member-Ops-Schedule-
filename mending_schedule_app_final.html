@@ -164,9 +164,11 @@ select, input[type=time] { width: 100%; font-size: 13px; padding: 7px 9px; borde
     <button class="tab" onclick="switchTab('transfers')">Transfers Only</button>
   </div>
   <div id="view-manager" class="view active">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem;flex-wrap:wrap;gap:8px">
       <button onclick="openCopyModal()" style="font-size:12px;padding:4px 12px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);background:transparent;cursor:pointer;color:var(--text-secondary);font-family:var(--font)">Copy from prev week</button>
-      <div style="display:flex;align-items:center;gap:8px">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <button onclick="openNoOBModal()" id="no-ob-week-btn" style="font-size:12px;padding:4px 12px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);background:transparent;cursor:pointer;color:var(--text-secondary);font-family:var(--font)">📵 No OB</button>
+        <button onclick="openNoPTModal()" id="no-pt-week-btn" style="font-size:12px;padding:4px 12px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);background:transparent;cursor:pointer;color:var(--text-secondary);font-family:var(--font)">⏸ No PT</button>
         <button onclick="sendTodaySchedules()" id="send-schedules-btn" style="font-size:12px;padding:4px 12px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);background:transparent;cursor:pointer;color:var(--text-secondary);font-family:var(--font)">📅 Send today's schedules</button>
         <span id="send-schedules-status" style="font-size:11px;color:var(--text-tertiary)"></span>
       </div>
@@ -808,6 +810,28 @@ select, input[type=time] { width: 100%; font-size: 13px; padding: 7px 9px; borde
 
 <!-- Schedule change confirmation modal -->
 <!-- Huddle conflict modal -->
+<!-- No OB / No PT scope modal -->
+<div class="modal-overlay" id="no-activity-modal">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-title" id="no-act-title">Turn off Outbound</div>
+    <p style="font-size:13px;color:var(--text-secondary);margin-bottom:1.25rem" id="no-act-desc">Choose how long to turn off Outbound for all agents.</p>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:1.25rem">
+      <label style="display:flex;align-items:flex-start;gap:10px;font-size:13px;cursor:pointer;padding:10px 12px;border-radius:var(--radius-md);border:0.5px solid var(--border-light)">
+        <input type="radio" name="no-act-scope" value="week" checked style="margin-top:2px">
+        <div><strong>This week only</strong> — turns back on automatically next week</div>
+      </label>
+      <label style="display:flex;align-items:flex-start;gap:10px;font-size:13px;cursor:pointer;padding:10px 12px;border-radius:var(--radius-md);border:0.5px solid var(--border-light)">
+        <input type="radio" name="no-act-scope" value="indefinite" style="margin-top:2px">
+        <div><strong>Until I turn it back on</strong> — applies to all future weeks until toggled off</div>
+      </label>
+    </div>
+    <div class="btn-row">
+      <button class="bp" id="no-act-confirm-btn" onclick="applyNoActivity()">Turn off</button>
+      <button class="bs" onclick="document.getElementById('no-activity-modal').classList.remove('open')">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="huddle-conflict-modal">
   <div class="modal" style="max-width:420px">
     <div class="modal-title">Huddle conflicts with scheduled activity</div>
@@ -1029,6 +1053,9 @@ function getFriWeekForDate(d){
 let mDay='Monday',mFW=gfw(tf),aView='Ebony',aDay='Monday',aFW=gfw(tf),cDay='Monday',cFW=gfw(tf);
 
 const SOK='mending-overrides-v2',FOK='mending-fri-overrides-v2',PTK='mending-nopt-v2',HK='mending-holiday-v2';
+const IOBK='mending-indefinite-noob-v1',IPTK='mending-indefinite-nopt-v1';
+// indefiniteNoOB/PT: true means turned off until manually re-enabled
+let indefiniteNoOB=false,indefiniteNoPT=false;
 // ── GitHub sync ───────────────────────────────────────────────
 const GH_KEY='mending-github-v1';
 const GH_FILE='schedule-data.json';
@@ -1235,6 +1262,8 @@ function save(){
     localStorage.setItem(FOK,JSON.stringify(friOverrides));
     localStorage.setItem(PTK,JSON.stringify(noPT));
     localStorage.setItem(HK,JSON.stringify(noHoliday));
+    localStorage.setItem(IOBK,JSON.stringify(indefiniteNoOB));
+    localStorage.setItem(IPTK,JSON.stringify(indefiniteNoPT));
     setSS('saved');
   }catch(e){setSS('error');}
   // Push to GitHub — debounced so rapid changes batch into one push
@@ -1273,6 +1302,10 @@ function load(){
     if(fo)friOverrides=JSON.parse(fo);
     if(pt)noPT=JSON.parse(pt);
     if(hol)noHoliday=JSON.parse(hol);
+    const iob=localStorage.getItem(IOBK);
+    const ipt=localStorage.getItem(IPTK);
+    if(iob) indefiniteNoOB=JSON.parse(iob);
+    if(ipt) indefiniteNoPT=JSON.parse(ipt);
   }catch(e){}
   renderAll();
   // If GitHub is configured, pull latest overrides in background
@@ -1562,10 +1595,10 @@ function gBlocks(agent,day,fw,tS,tF){
     blocks=mergeOP(blocks.map(x=>HOLIDAY_KEEP.includes(x[0])?x:['On Phones',x[1],x[2]]));
   } else {
     // Apply individual toggles only if not in holiday mode
-    if(day!=='Friday'&&noOB[dateStr]&&noOB[dateStr][agent]){
+    if(day!=='Friday'&&(indefiniteNoOB||(noOB[dateStr]&&noOB[dateStr][agent]))){
       blocks=mergeOP(blocks.map(x=>x[0]==='Outbound'?['On Phones',x[1],x[2]]:x));
     }
-    if(day!=='Friday'&&noPT[dateStr]&&noPT[dateStr][agent]){
+    if(day!=='Friday'&&(indefiniteNoPT||(noPT[dateStr]&&noPT[dateStr][agent]))){
       blocks=mergeOP(blocks.map(x=>x[0]==='Project Time'?['On Phones',x[1],x[2]]:x));
     }
   }
@@ -2126,9 +2159,112 @@ function renderManager(){
     <div class="sum-card"><div class="sum-lbl">Outbound coverage</div><div class="sum-val">${(ob/60).toFixed(1)}h</div><div class="sum-sub">${AGENTS.some(a=>noOB[mDateStr]&&noOB[mDateStr][a])?'Some agents no OB':'across working agents'}</div></div>
     <div class="sum-card"><div class="sum-lbl">Agents working</div><div class="sum-val">${AGENTS.filter(a=>!(ooo[a]&&ooo[a][mDateStr]===true)).length}</div><div class="sum-sub">of ${AGENTS.length} on ${dateDisp}</div></div>`;
 }
-function setMDay(d){mDay=d;renderManager();}
-function setMgrFriWeek(w){mFW=w;renderManager();}
-function navWeek(dir){weekOffset+=dir;renderAll();}
+let _noActType='ob'; // 'ob' or 'pt'
+
+function openNoOBModal(){
+  if(!managerUnlocked){requirePIN('manager',()=>openNoOBModal());return;}
+  _noActType='ob';
+  const isOn=indefiniteNoOB||isWeekNoOB();
+  document.getElementById('no-act-title').textContent=isOn?'Turn Outbound back on':'Turn off Outbound';
+  document.getElementById('no-act-desc').textContent=isOn
+    ?'Outbound is currently off for all agents. Turn it back on?'
+    :'Turn off Outbound for all agents — choose how long.';
+  document.getElementById('no-act-confirm-btn').textContent=isOn?'Turn back on':'Turn off';
+  document.querySelector('input[name="no-act-scope"][value="week"]').checked=true;
+  // Hide scope options if turning back on
+  document.querySelectorAll('input[name="no-act-scope"]').forEach(r=>{
+    r.closest('label').style.display=isOn?'none':'flex';
+  });
+  document.getElementById('no-activity-modal').classList.add('open');
+}
+
+function openNoPTModal(){
+  if(!managerUnlocked){requirePIN('manager',()=>openNoPTModal());return;}
+  _noActType='pt';
+  const isOn=indefiniteNoPT||isWeekNoPT();
+  document.getElementById('no-act-title').textContent=isOn?'Turn Project Time back on':'Turn off Project Time';
+  document.getElementById('no-act-desc').textContent=isOn
+    ?'Project Time is currently off for all agents. Turn it back on?'
+    :'Turn off Project Time for all agents — choose how long.';
+  document.getElementById('no-act-confirm-btn').textContent=isOn?'Turn back on':'Turn off';
+  document.querySelector('input[name="no-act-scope"][value="week"]').checked=true;
+  document.querySelectorAll('input[name="no-act-scope"]').forEach(r=>{
+    r.closest('label').style.display=isOn?'none':'flex';
+  });
+  document.getElementById('no-activity-modal').classList.add('open');
+}
+
+function isWeekNoOB(){
+  const weekDates=DAYS.map(d=>toISO(dateOfDay(d,weekOffset)));
+  return weekDates.every(ds=>AGENTS.every(a=>noOB[ds]&&noOB[ds][a]));
+}
+function isWeekNoPT(){
+  const weekDates=DAYS.map(d=>toISO(dateOfDay(d,weekOffset)));
+  return weekDates.every(ds=>AGENTS.every(a=>noPT[ds]&&noPT[ds][a]));
+}
+
+function applyNoActivity(){
+  document.getElementById('no-activity-modal').classList.remove('open');
+  const scope=document.querySelector('input[name="no-act-scope"]:checked')?.value||'week';
+  const isOB=_noActType==='ob';
+  const isCurrentlyOn=isOB?(indefiniteNoOB||isWeekNoOB()):(indefiniteNoPT||isWeekNoPT());
+
+  if(isCurrentlyOn){
+    // Turn back on — clear everything
+    if(isOB){
+      indefiniteNoOB=false;
+      // Clear all weekly noOB entries for all weeks
+      Object.keys(noOB).forEach(ds=>AGENTS.forEach(a=>{if(noOB[ds])noOB[ds][a]=false;}));
+    } else {
+      indefiniteNoPT=false;
+      Object.keys(noPT).forEach(ds=>AGENTS.forEach(a=>{if(noPT[ds])noPT[ds][a]=false;}));
+    }
+  } else if(scope==='indefinite'){
+    // Turn off indefinitely
+    if(isOB) indefiniteNoOB=true;
+    else indefiniteNoPT=true;
+    // Also set current week so individual toggles show correctly
+    applyNoActivityWeek(isOB);
+  } else {
+    // This week only
+    if(isOB) indefiniteNoOB=false;
+    else indefiniteNoPT=false;
+    applyNoActivityWeek(isOB);
+  }
+
+  save();renderAll();
+}
+
+function applyNoActivityWeek(isOB){
+  const weekDates=DAYS.map(d=>toISO(dateOfDay(d,weekOffset)));
+  weekDates.forEach(ds=>{
+    if(isOB){if(!noOB[ds])noOB[ds]={};AGENTS.forEach(a=>{noOB[ds][a]=true;});}
+    else{if(!noPT[ds])noPT[ds]={};AGENTS.forEach(a=>{noPT[ds][a]=true;});}
+  });
+}
+
+function updateNoOBWeekBtn(){
+  // Update No OB button
+  const obBtn=document.getElementById('no-ob-week-btn');
+  if(obBtn){
+    const obOn=indefiniteNoOB||isWeekNoOB();
+    obBtn.textContent=indefiniteNoOB?'📵 No OB (indefinite)':obOn?'📵 No OB (this week)':'📵 No OB';
+    obBtn.style.background=obOn?'#FAEEDA':'transparent';
+    obBtn.style.color=obOn?'#633806':'var(--text-secondary)';
+    obBtn.style.borderColor=obOn?'#FAC775':'var(--border-light)';
+  }
+  // Update No PT button
+  const ptBtn=document.getElementById('no-pt-week-btn');
+  if(ptBtn){
+    const ptOn=indefiniteNoPT||isWeekNoPT();
+    ptBtn.textContent=indefiniteNoPT?'⏸ No PT (indefinite)':ptOn?'⏸ No PT (this week)':'⏸ No PT';
+    ptBtn.style.background=ptOn?'#EAF3DE':'transparent';
+    ptBtn.style.color=ptOn?'#27500A':'var(--text-secondary)';
+    ptBtn.style.borderColor=ptOn?'#C0DD97':'var(--border-light)';
+  }
+}
+function setMgrFriWeek(w){mFW=w;renderManager();updateNoOBWeekBtn();}
+function navWeek(dir){weekOffset+=dir;renderAll();updateNoOBWeekBtn();}
 
 function renderAgent(){
   const aDateStr=toISO(dateOfDay(aDay,weekOffset));
@@ -4680,6 +4816,7 @@ function renderAll(){
   if(document.getElementById('view-coverage').classList.contains('active')){try{renderCovTab();}catch(e){}}
   if(document.getElementById('view-transfers').classList.contains('active')){try{renderTransfersOnly();}catch(e){}}
   updateReqBadge();
+  updateNoOBWeekBtn();
 }
 
 // ── Copy from previous week ───────────────────────────────────
