@@ -3809,18 +3809,21 @@ function toggleSlackSettings(){
 function testSlackNotification(){
   const url=document.getElementById('slack-webhook-url').value.trim();
   if(!url){alert('Please enter a webhook URL first.');return;}
+  const statusEl=document.getElementById('slack-status');
+  statusEl.innerHTML='<span style="color:#BA7517">Sending...</span>';
   sendSlackNotification(url,{
-    agent:'Test Agent',type:'day',date:toISO(new Date()),
-    notes:'This is a test notification from your Mending Schedule app.',
+    _raw:':white_check_mark: *Test from Mending Schedule App* — your webhook is connected!'
   }).then(ok=>{
-    document.getElementById('slack-status').innerHTML=ok
-      ?'<span style="color:#27500A">✓ Test message sent! Check your Slack.</span>'
-      :'<span style="color:#A32D2D">✗ Failed. Check your webhook URL and try again.</span>';
+    statusEl.innerHTML=ok
+      ?'<span style="color:#27500A">✓ Request sent — check your Slack to confirm it arrived. (Browser security prevents us from reading Slack\'s response directly.)</span>'
+      :'<span style="color:#A32D2D">✗ Failed to send. Check your webhook URL.</span>';
   });
 }
 
 // Send a schedule change DM to an agent when their schedule is updated today
 function notifyAgentScheduleChange(agent,dateStr,blocks){
+  // Re-read settings fresh to guarantee we have the latest saved webhook
+  loadSlackSettings();
   const webhook=slackAgentWebhooks[agent];
   if(!webhook) return;
   // Only notify for today's date
@@ -3924,7 +3927,6 @@ async function sendSlackNotification(webhookUrl,req){
   if(!webhookUrl) return false;
   let text;
   if(req._raw){
-    // Pre-formatted message passed directly
     text=req._raw;
   } else {
     const typeLabels={shift:'Shift time change',day:'Day change',permanent:'Permanent break/lunch',time:'Additional time',earlyleave:'Early leave + makeup',shadowto:'Shadowing — TO window'};
@@ -3938,14 +3940,19 @@ async function sendSlackNotification(webhookUrl,req){
     if(req.notes) detail+=`\nNote: "${req.notes}"`;
     text=`:calendar: *New schedule request*\n*Agent:* ${req.agent}\n*Type:* ${typeLabel}\n*Date:* ${dateDisp}${detail}\n\n_Review it in the Schedule Viewer → Review requests tab_`;
   }
+  // Use text/plain to avoid CORS preflight — Slack webhooks accept this from browsers
+  const payload=JSON.stringify({text});
   try{
-    const resp=await fetch(webhookUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text})});
-    return resp.ok;
+    // First try with no-cors (fire-and-forget, works around CORS restrictions on GitHub Pages)
+    await fetch(webhookUrl,{
+      method:'POST',
+      mode:'no-cors',
+      headers:{'Content-Type':'text/plain'},
+      body:payload
+    });
+    return true;
   }catch(e){
-    try{
-      await fetch(webhookUrl,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},body:JSON.stringify({text})});
-      return true;
-    }catch(e2){return false;}
+    return false;
   }
 }
 
@@ -4273,8 +4280,17 @@ function submitRequest(){
   requests.push(req);
   saveRequests();updateReqBadge();reqClear();
   elMakeupDays=[];renderElMakeupDays();
-  // Send Slack notification if webhook is configured
+  // Re-read Slack settings fresh from localStorage before sending
+  // in case slackWebhook variable wasn't populated at load time
+  loadSlackSettings();
   if(slackWebhook) sendSlackNotification(slackWebhook,req);
+  else{
+    // Try reading directly from localStorage as fallback
+    try{
+      const s=localStorage.getItem(SLACK_KEY);
+      if(s){const d=JSON.parse(s);if(d.webhook) sendSlackNotification(d.webhook,req);}
+    }catch(e){}
+  }
   const dateDisp=new Date(date+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'});
   document.getElementById('req-status').innerHTML=`<span style="color:#27500A">✓ Request submitted for ${dateDisp}. Your manager will review it shortly.</span>`;
   renderMyRequests(agent);
